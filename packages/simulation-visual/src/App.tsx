@@ -1,35 +1,82 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import * as styles from "./sim.module.scss";
+import "./App.scss";
+import cls from "classnames";
+import { VaettirReact } from "vaettir-react";
+import { useEffect } from "react";
+import { ActorCoord, Visualizer } from "./visualizer";
+import { pipe } from "effect";
+import { Actor } from "../../common-types/actors";
 
-function App() {
-  const [count, setCount] = useState(0)
+export const App = () => {
+  const visualizer = VaettirReact.useOwned(Visualizer);
+
+  useEffect(() => {
+    visualizer.api.init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visualizer.id]);
+
+  const dimension = visualizer.api.dimension();
+  const coords = visualizer.api.coords();
+
+  console.log(coords);
 
   return (
     <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div className={cls(styles.frame)}>
+        <div
+          className={cls(styles.simulation)}
+          style={{ width: dimension.x, height: dimension.y }}
+        >
+          {coords.map((coord) => (
+            <ActorView actorCoord={coord} />
+          ))}
+        </div>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
-  )
-}
+  );
+};
 
-export default App
+const actorCoordToChar = (actor: Actor.Type) =>
+  pipe(actor.t, (t) => {
+    switch (t) {
+      case "Robot":
+        return "🤖";
+      case "Sensor":
+        return "🌱";
+      case "WaterPump":
+        return "🚰";
+    }
+  });
+
+const actorTip = (actor: Actor.Type) =>
+  `
+type: ${actor.t}
+coord: ${Math.round(actor.pos.x * 100) / 100}, ${
+    Math.round(actor.pos.y * 100) / 100
+  }
+`.trim();
+
+export const ActorViewDimension = 40;
+export const ActorView = ({
+  actorCoord: {
+    actor,
+    pos: { x, y },
+  },
+}: {
+  actorCoord: ActorCoord;
+}) => (
+  <div
+    className={cls(styles.actorCoord)}
+    style={{
+      left: x - ActorViewDimension / 2,
+      top: y - ActorViewDimension / 2,
+    }}
+  >
+    {actorCoordToChar(actor)}
+    <div className={cls(styles.tip)}>
+      <pre>{actorTip(actor)}</pre>
+    </div>
+  </div>
+);
+
+export default App;

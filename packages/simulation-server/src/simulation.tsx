@@ -104,8 +104,8 @@ export namespace Simulation {
       // hasn't reached destination
       if (currentDist < totalDist) {
         robot.pos = pipe(Math.atan2(deltaY, deltaX), (angle) => ({
-          x: currentDist * Math.sin(angle),
-          y: currentDist * Math.cos(angle),
+          x: from.pos.x + currentDist * Math.cos(angle),
+          y: from.pos.y + currentDist * Math.sin(angle),
         }));
         return;
       }
