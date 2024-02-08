@@ -10,6 +10,7 @@ type Actors = z.TypeOf<typeof Actors>;
 const Actors = z.array(Actor.Type);
 
 const COORD_MULTIPLIER = 10;
+const COORD_PADDING = 100;
 
 export type ActorCoord = { actor: Actor.Type; pos: Pos.Type["pos"] };
 
@@ -23,7 +24,7 @@ const fetchState = (SERVER: string) =>
     )
   );
 
-export const Visualizer = (SERVER = "http://localhost:3000") =>
+export const Visualizer = (SERVER: string) =>
   Vaettir.build()
     .api(({ isDestroyed, channels }) => {
       const data = {
@@ -31,9 +32,10 @@ export const Visualizer = (SERVER = "http://localhost:3000") =>
         actors: null as null | Actors, // actor population
         lastFetch: null as null | Awaited<ReturnType<typeof fetchState>>, // error reporting purposoe
         dimension: {
-          max: { x: 0, y: 0 } as Pos.Type["pos"],
-          min: { x: 0, y: 0 } as Pos.Type["pos"],
-          calculated: { x: 0, y: 0 } as Pos.Type["pos"],
+          frameContainer: { x: -Infinity, y: -Infinity } as Pos.Type["pos"],
+          frameRawEdgeDistance: { x: 0, y: 0 } as Pos.Type["pos"],
+          frameInner: { x: 0, y: 0 } as Pos.Type["pos"],
+          frameOuter: { x: 0, y: 0 } as Pos.Type["pos"],
         },
       };
 
@@ -46,32 +48,27 @@ export const Visualizer = (SERVER = "http://localhost:3000") =>
             if (Exit.isSuccess(lastFetch)) {
               data.actors = lastFetch.value;
 
+              let maxX = 0;
+              let maxY = 0;
+
               // calculate data.dimension
               lastFetch.value.forEach((item) => {
-                data.dimension.max.x = Math.max(
-                  item.pos.x,
-                  data.dimension.max.x
-                );
-                data.dimension.max.y = Math.max(
-                  item.pos.y,
-                  data.dimension.max.y
-                );
-                data.dimension.min.x = Math.min(
-                  item.pos.x,
-                  data.dimension.min.x
-                );
-                data.dimension.min.y = Math.min(
-                  item.pos.y,
-                  data.dimension.min.y
-                );
+                maxX = Math.max(Math.abs(item.pos.x), maxX);
+                maxY = Math.max(Math.abs(item.pos.y), maxY);
               });
-              data.dimension.calculated = {
-                x:
-                  (data.dimension.max.x - data.dimension.min.x) *
-                  COORD_MULTIPLIER,
-                y:
-                  (data.dimension.max.y - data.dimension.min.y) *
-                  COORD_MULTIPLIER,
+              //
+              data.dimension.frameRawEdgeDistance = {
+                x: maxX,
+                y: maxY,
+              };
+              data.dimension.frameInner = {
+                x: data.dimension.frameRawEdgeDistance.x * 2 * COORD_MULTIPLIER,
+                y: data.dimension.frameRawEdgeDistance.y * 2 * COORD_MULTIPLIER,
+              };
+
+              data.dimension.frameOuter = {
+                x: data.dimension.frameInner.x + COORD_PADDING * 2,
+                y: data.dimension.frameInner.y + COORD_PADDING * 2,
               };
             }
 
@@ -80,18 +77,41 @@ export const Visualizer = (SERVER = "http://localhost:3000") =>
           }
         });
 
-      const dimension = (): Readonly<Pos.Type["pos"]> =>
-        data.dimension.calculated;
+      const frame = (): Readonly<Pos.Type["pos"]> => data.dimension.frameOuter;
 
-      const coords = (): ActorCoord[] =>
-        (data.actors || []).map((actor) => ({
+      const coords = (): ActorCoord[] => {
+        const xCenteringDiff = (() => {
+          if (
+            data.dimension.frameContainer.x > data.dimension.frameOuter.x &&
+            data.dimension.frameContainer.x !== 0
+          ) {
+            const screenCenterX = data.dimension.frameContainer.x / 2;
+            const prerenderCenterX = data.dimension.frameOuter.x / 2;
+            const diff = screenCenterX - prerenderCenterX;
+            return diff;
+          }
+          return 0;
+        })();
+
+        return (data.actors || []).map((actor) => ({
           actor,
           pos: {
-            x: (actor.pos.x - data.dimension.min.x) * COORD_MULTIPLIER,
-            y: (actor.pos.y - data.dimension.min.y) * COORD_MULTIPLIER,
+            x:
+              (actor.pos.x + data.dimension.frameRawEdgeDistance.x) *
+                COORD_MULTIPLIER +
+              COORD_PADDING +
+              xCenteringDiff,
+            y:
+              (actor.pos.y + data.dimension.frameRawEdgeDistance.y) *
+                COORD_MULTIPLIER +
+              COORD_PADDING,
           },
         }));
+      };
 
-      return { init, dimension, coords };
+      const setFrameContainerPos = (pos: Pos.Type["pos"]) =>
+        (data.dimension.frameContainer = pos);
+
+      return { init, frame, coords, setFrameContainerPos };
     })
     .finish();
