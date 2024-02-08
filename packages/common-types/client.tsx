@@ -32,7 +32,7 @@ export const assumePlant = async (server: string, id: string) => {
   const actor = await getPlant(server, id);
 
   return {
-    get: () => getPlant(server, id),
+    get: () => getPlant(server, actor.id),
   };
 };
 
@@ -52,7 +52,7 @@ export const assumeRobot = async (server: string, id: string) => {
   const actor = await getRobot(server, id);
 
   return {
-    get: () => getRobot(server, id),
+    get: () => getRobot(server, actor.id),
     moveToCoord: (pos: Pos.Type["pos"]) =>
       act(server, {
         id,
