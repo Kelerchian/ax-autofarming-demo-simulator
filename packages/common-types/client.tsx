@@ -7,7 +7,7 @@ const act = (server: string, action: Actor.Actions) =>
     body: JSON.stringify(action),
   });
 
-const getActor = (server: string, id: string) =>
+export const getActor = (server: string, id: string) =>
   fetch(`${server}/id/${id}`)
     .then((x) => x.json())
     .then((json) => Actor.Type.parse(json));
@@ -27,6 +27,11 @@ const getPlant = async (server: string, id: string) => {
   }
   return actor;
 };
+
+export const getAllActors = (server: string) =>
+  fetch(`${server}/state`)
+    .then((res) => res.json())
+    .then((json) => Actor.Actors.parse(json));
 
 export const assumePlant = async (server: string, id: string) => {
   const actor = await getPlant(server, id);

@@ -58,7 +58,7 @@ export namespace Robot {
     export const Actions = z.union([MoveToCoordinate, WaterPlant]);
 
     export const apply = (
-      actors: Actor.ReadonlyActors,
+      actors: Actor.ReadonlyActorsMap,
       robot: Type,
       action: Actions
     ) => {
@@ -257,8 +257,11 @@ export namespace Actor {
   export type Type = z.TypeOf<typeof Type>;
   export const Type = z.union([Robot.Type, Sensor.Type, WaterPump.Type]);
 
-  export type Actors = Map<string, Type>;
-  export type ReadonlyActors = ReadonlyMap<string, Type>;
+  export type ActorsMap = Map<string, Type>;
+  export type ReadonlyActorsMap = ReadonlyMap<string, Type>;
+
+  export type Actors = z.TypeOf<typeof Actors>;
+  export const Actors = z.array(Type);
 
   export type Actions = z.TypeOf<typeof Actions>;
   export const Actions = z.object({

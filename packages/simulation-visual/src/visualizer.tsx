@@ -1,13 +1,10 @@
 import { Actor, Pos } from "../../common-types/actors";
-import * as z from "zod";
 import "./App.scss";
 import { Vaettir } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
 import { sleep } from "systemic-ts-utils/async-utils";
 import { Effect, Exit } from "effect";
-
-type Actors = z.TypeOf<typeof Actors>;
-const Actors = z.array(Actor.Type);
+import { getAllActors } from "../../common-types/client";
 
 const COORD_MULTIPLIER = 10;
 const COORD_PADDING = 100;
@@ -15,21 +12,14 @@ const COORD_PADDING = 100;
 export type ActorCoord = { actor: Actor.Type; pos: Pos.Type["pos"] };
 
 const fetchState = (SERVER: string) =>
-  Effect.runPromiseExit(
-    Effect.tryPromise(
-      (): Promise<Actors> =>
-        fetch(`${SERVER}/state`)
-          .then((res) => res.json())
-          .then((json) => Actors.parse(json))
-    )
-  );
+  Effect.runPromiseExit(Effect.tryPromise(() => getAllActors(SERVER)));
 
 export const Visualizer = (SERVER: string) =>
   Vaettir.build()
     .api(({ isDestroyed, channels }) => {
       const data = {
         taskLock: BoolLock.make(),
-        actors: null as null | Actors, // actor population
+        actors: null as null | Actor.Actors, // actor population
         lastFetch: null as null | Awaited<ReturnType<typeof fetchState>>, // error reporting purposoe
         dimension: {
           frameContainer: { x: -Infinity, y: -Infinity } as Pos.Type["pos"],
