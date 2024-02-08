@@ -13,7 +13,7 @@ export namespace Simulation {
   export const make = () =>
     Vaettir.build()
       .api(({ isDestroyed }) => {
-        const actors: Actor.Actors = new Map();
+        const actors: Actor.ActorsMap = new Map();
 
         const addActor = (actor: Actor.Type) => {
           actors.set(actor.id, actor);
@@ -48,7 +48,7 @@ export namespace Simulation {
 
         return {
           add,
-          getAll: (): Actor.ReadonlyActors => actors,
+          getAll: (): Actor.ReadonlyActorsMap => actors,
           getAsArray: () => Array.from(actors.values()),
           getById: (id: string) => actors.get(id),
         };
