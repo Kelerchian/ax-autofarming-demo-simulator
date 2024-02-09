@@ -3,6 +3,11 @@
     "packages/simulation-server",
     "packages/simulation-visual"
   ],
+  "scripts": {
+    "dev:sim": "cd packages/simulation-server && npm run start",
+    "dev:vis": "cd packages/simulation-visual && npm run dev",
+    "dev": "concurrently npm:dev:sim npm:dev:vis"
+  },
   "dependencies": {
     "effect": "^2.2.3",
     "fastify": "^4.26.0",

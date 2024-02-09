@@ -1,19 +1,22 @@
-import { Actor, Pos } from "../../common-types/actors";
-import "./App.scss";
-import { Vaettir } from "vaettir-react";
+import { Actor, Pos } from "../../../common-types/actors";
+import "../App.scss";
+import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
 import { sleep } from "systemic-ts-utils/async-utils";
 import { Effect, Exit } from "effect";
-import { getAllActors } from "../../common-types/client";
+import { getAllActors } from "../../../common-types/client";
 
 const COORD_MULTIPLIER = 10;
 const COORD_PADDING = 100;
+
+export const VisualizerCtx = VaettirReact.Context.make<Visualizer>();
 
 export type ActorCoord = { actor: Actor.Type; pos: Pos.Type["pos"] };
 
 const fetchState = (SERVER: string) =>
   Effect.runPromiseExit(Effect.tryPromise(() => getAllActors(SERVER)));
 
+export type Visualizer = ReturnType<typeof Visualizer>;
 export const Visualizer = (SERVER: string) =>
   Vaettir.build()
     .api(({ isDestroyed, channels }) => {
@@ -69,6 +72,12 @@ export const Visualizer = (SERVER: string) =>
 
       const frame = (): Readonly<Pos.Type["pos"]> => data.dimension.frameOuter;
 
+      const actorsMap = (): Actor.ActorsMap =>
+        (data.actors || []).reduce((acc, x) => {
+          acc.set(x.id, x);
+          return acc;
+        }, new Map());
+
       const coords = (): ActorCoord[] => {
         const xCenteringDiff = (() => {
           if (
@@ -102,6 +111,6 @@ export const Visualizer = (SERVER: string) =>
       const setFrameContainerPos = (pos: Pos.Type["pos"]) =>
         (data.dimension.frameContainer = pos);
 
-      return { init, frame, coords, setFrameContainerPos };
+      return { init, frame, coords, setFrameContainerPos, actorsMap };
     })
     .finish();

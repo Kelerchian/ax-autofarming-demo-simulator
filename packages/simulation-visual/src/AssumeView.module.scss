@@ -1,0 +1,29 @@
+.assumeView {
+  padding: 1rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  flex-flow: column nowrap;
+  color: black;
+}
+
+.highlight {
+  background-color: rgb(241, 241, 241);
+}
+
+.status {
+  gap: 0.5rem;
+}
+
+.box {
+  &[role="button"] {
+    &:hover {
+      background-color: rgb(241, 241, 241);
+    }
+    cursor: pointer;
+  }
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  box-shadow: 4px 0px 4px rgba(0, 0, 0, 0.1), 0px 4px 4px rgba(0, 0, 0, 0.2);
+}

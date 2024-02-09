@@ -1,4 +1,4 @@
-import { Actor, Pos } from "./actors";
+import { Actor, Pos, Robot, Sensor } from "./actors";
 
 const act = (server: string, action: Actor.Actions) =>
   fetch(`${server}/action`, {
@@ -33,13 +33,38 @@ export const getAllActors = (server: string) =>
     .then((res) => res.json())
     .then((json) => Actor.Actors.parse(json));
 
-export const assumePlant = async (server: string, id: string) => {
-  const actor = await getPlant(server, id);
-
+export type PlantControl = ReturnType<typeof makePlantControl>;
+export const makePlantControl = (server: string, actor: Sensor.Type) => {
   return {
     get: () => getPlant(server, actor.id),
   };
 };
+
+export type RobotControl = ReturnType<typeof makeRobotControl>;
+export const makeRobotControl = (server: string, actor: Robot.Type) => {
+  return {
+    get: () => getRobot(server, actor.id),
+    moveToCoord: (pos: Pos.Type["pos"]) =>
+      act(server, {
+        id: actor.id,
+        action: {
+          t: "MoveToCoordinate",
+          to: { pos },
+        },
+      }),
+    waterPlant: (plantId: string) =>
+      act(server, {
+        id: actor.id,
+        action: {
+          t: "WaterPlant",
+          sensorId: plantId,
+        },
+      }),
+  };
+};
+
+export const assumePlant = async (server: string, id: string) =>
+  makePlantControl(server, await getPlant(server, id));
 
 /**
  * @example
@@ -53,26 +78,5 @@ export const assumePlant = async (server: string, id: string) => {
  *   y: 0
  * })
  */
-export const assumeRobot = async (server: string, id: string) => {
-  const actor = await getRobot(server, id);
-
-  return {
-    get: () => getRobot(server, actor.id),
-    moveToCoord: (pos: Pos.Type["pos"]) =>
-      act(server, {
-        id,
-        action: {
-          t: "MoveToCoordinate",
-          to: { pos },
-        },
-      }),
-    waterPlant: (plantId: string) =>
-      act(server, {
-        id,
-        action: {
-          t: "WaterPlant",
-          sensorId: plantId,
-        },
-      }),
-  };
-};
+export const assumeRobot = async (server: string, id: string) =>
+  makeRobotControl(server, await getRobot(server, id));
