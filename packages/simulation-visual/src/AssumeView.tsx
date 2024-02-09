@@ -5,7 +5,7 @@ import { ActorLogo } from "./ActorView";
 import { useEffect, useMemo, useState } from "react";
 import { SelectorCtx } from "./worker/selector";
 import { pipe } from "effect";
-import { Pos } from "../../common-types/actors";
+import { Pos, Sensor } from "../../common-types/actors";
 import { VisualizerCtx } from "./worker/visualizer";
 
 export const AssumeView = () => {
@@ -108,10 +108,12 @@ export const AssumeControl = ({ control }: { control: AssumedActor }) => {
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace AssumeControlRobotMode {
   export const MoveTo: unique symbol = Symbol();
-
   export type MoveTo = typeof MoveTo;
 
-  export type Type = MoveTo;
+  export const WaterPlant: unique symbol = Symbol();
+  export type WaterPlant = typeof WaterPlant;
+
+  export type Type = MoveTo | WaterPlant;
 }
 
 export const AssumeControlRobot = ({ control }: { control: AssumedRobot }) => {
@@ -127,11 +129,29 @@ export const AssumeControlRobot = ({ control }: { control: AssumedRobot }) => {
           >
             Move
           </Box>
+          <Box
+            role="button"
+            onClick={() => setMode(AssumeControlRobotMode.WaterPlant)}
+          >
+            Water
+          </Box>
         </>
       )}
       {mode === AssumeControlRobotMode.MoveTo && (
         <AssumeControlRobotMoveTo
-          onExec={(pos) => control.control.moveToCoord(pos)}
+          onExec={(pos) => {
+            control.control.moveToCoord(pos);
+            setMode(null);
+          }}
+          onCancel={() => setMode(null)}
+        />
+      )}
+      {mode === AssumeControlRobotMode.WaterPlant && (
+        <AssumeControlRobotWaterPlant
+          onExec={(plantId) => {
+            control.control.waterPlant(plantId);
+            setMode(null);
+          }}
           onCancel={() => setMode(null)}
         />
       )}
@@ -145,8 +165,6 @@ export const AssumeControlRobotMoveTo = (props: {
 }) => {
   const visualizer = VisualizerCtx.borrow();
   useEffect(() => {
-    console.log("assumecontrolrobotmoveto");
-
     const captureClick = (e: MouseEvent) => {
       const { screenX: x, screenY: y } = e;
       const simCoord = visualizer.api.viewportCoordinateToMapCoordinate({
@@ -170,6 +188,56 @@ export const AssumeControlRobotMoveTo = (props: {
       <Box role="button" onClick={props.onCancel}>
         Cancel
       </Box>
+    </>
+  );
+};
+
+export const AssumeControlRobotWaterPlant = (props: {
+  onExec: (plantId: string) => unknown;
+  onCancel: () => unknown;
+}) => {
+  const selector = SelectorCtx.borrow();
+  const hoverAgent = useMemo(selector.api.createHoverAgent, []);
+
+  useEffect(() => {
+    const unsub = selector.api.registerListener((actor) => {
+      if (actor.t !== "Sensor") return;
+      props.onExec(actor.id);
+    });
+
+    return () => {
+      hoverAgent.unhover();
+      unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverAgent, selector.api]);
+
+  return (
+    <>
+      <Box role="button" onClick={props.onCancel}>
+        Cancel
+      </Box>
+      <h4>Select a plant to water</h4>
+      <div>
+        {selector.api
+          .selections()
+          .filter((actor): actor is Sensor.Type => actor.t === "Sensor")
+          .map((actor) => (
+            <Box
+              onMouseEnter={() => hoverAgent.hover(actor)}
+              onMouseLeave={() => hoverAgent.unhover()}
+              role="button"
+              className={cls(
+                "flex row nowrap",
+                selector.api.shouldHighlight(actor) && style.highlight
+              )}
+              onClick={() => selector.api.click(actor)}
+            >
+              <ActorLogo actor={actor} />
+              {actor.id}
+            </Box>
+          ))}
+      </div>
     </>
   );
 };
