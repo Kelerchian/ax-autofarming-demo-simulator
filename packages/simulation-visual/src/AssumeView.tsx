@@ -1,15 +1,19 @@
-import { ActorAssumerCtx } from "./worker/assume";
+import { ActorAssumerCtx, AssumedActor, AssumedRobot } from "./worker/assume";
 import * as style from "./AssumeView.module.scss";
 import cls from "classnames";
 import { ActorLogo } from "./ActorView";
 import { useEffect, useMemo, useState } from "react";
 import { SelectorCtx } from "./worker/selector";
 import { pipe } from "effect";
+import { Pos } from "../../common-types/actors";
+import { VisualizerCtx } from "./worker/visualizer";
 
 export const AssumeView = () => {
+  const [selecting, setSelecting] = useState(false);
+
   const assumer = ActorAssumerCtx.borrowListen();
   const assumed = assumer.api.getAssumed();
-  const [selecting, setSelecting] = useState(false);
+  const isAssuming = assumer.api.isAssuming();
 
   return (
     <div className={cls(style.assumeView, "flex column nowrap")}>
@@ -30,12 +34,10 @@ export const AssumeView = () => {
               <ActorLogo actor={actor} /> {actor.id}
             </Box>
           ))}
+        {isAssuming && <Box>Loading</Box>}
       </div>
-      {selecting && (
-        <div className={cls("flex row nowrap")}>
-          <AssumeSelect onDone={() => setSelecting(false)} />
-        </div>
-      )}
+      {selecting && <AssumeSelect onDone={() => setSelecting(false)} />}
+      {assumed && !selecting && <AssumeControl control={assumed} />}
     </div>
   );
 };
@@ -96,6 +98,89 @@ export const AssumeSelect = ({ onDone }: { onDone: () => unknown }) => {
   );
 };
 
+export const AssumeControl = ({ control }: { control: AssumedActor }) => {
+  if (control.actor.t === "Robot") {
+    return <AssumeControlRobot control={control as AssumedRobot} />;
+  }
+  return <AssumeControlUnsupported control={control} />;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace AssumeControlRobotMode {
+  export const MoveTo: unique symbol = Symbol();
+
+  export type MoveTo = typeof MoveTo;
+
+  export type Type = MoveTo;
+}
+
+export const AssumeControlRobot = ({ control }: { control: AssumedRobot }) => {
+  const [mode, setMode] = useState<null | AssumeControlRobotMode.Type>(null);
+
+  return (
+    <Box>
+      {mode === null && (
+        <>
+          <Box
+            role="button"
+            onClick={() => setMode(AssumeControlRobotMode.MoveTo)}
+          >
+            Move
+          </Box>
+        </>
+      )}
+      {mode === AssumeControlRobotMode.MoveTo && (
+        <AssumeControlRobotMoveTo
+          onExec={(pos) => control.control.moveToCoord(pos)}
+          onCancel={() => setMode(null)}
+        />
+      )}
+    </Box>
+  );
+};
+
+export const AssumeControlRobotMoveTo = (props: {
+  onExec: (pos: Pos.Type["pos"]) => unknown;
+  onCancel: () => unknown;
+}) => {
+  const visualizer = VisualizerCtx.borrow();
+  useEffect(() => {
+    console.log("assumecontrolrobotmoveto");
+
+    const captureClick = (e: MouseEvent) => {
+      const { screenX: x, screenY: y } = e;
+      const simCoord = visualizer.api.viewportCoordinateToMapCoordinate({
+        x,
+        y,
+      });
+      props.onExec(simCoord);
+      window.removeEventListener("mousedown", captureClick);
+    };
+    window.addEventListener("mousedown", captureClick);
+    return () => {
+      console.log("assumecontrolrobotmovetoremove");
+      window.removeEventListener("mousedown", captureClick);
+    };
+  }, [visualizer.id]);
+
+  return (
+    <>
+      <h4>Moving to coordinate</h4>
+      <div>Select a spot to move to</div>
+      <Box role="button" onClick={props.onCancel}>
+        Cancel
+      </Box>
+    </>
+  );
+};
+
+export const AssumeControlUnsupported = ({
+  control,
+}: {
+  control: AssumedActor;
+}) => <Box>No actions for {control.actor.t}</Box>;
+
+// TODO: move to a "common" component
 export const Box = (
   props: React.DetailedHTMLProps<
     React.HTMLAttributes<HTMLDivElement>,

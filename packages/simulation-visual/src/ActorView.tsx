@@ -5,6 +5,7 @@ import { Actor } from "../../common-types/actors";
 import { pipe } from "effect";
 import { SelectorCtx } from "./worker/selector";
 import { useEffect, useMemo } from "react";
+import { ActorAssumerCtx } from "./worker/assume";
 
 export const ActorViewDimension = 40;
 export const ActorView = ({
@@ -16,9 +17,11 @@ export const ActorView = ({
   actorCoord: ActorCoord;
 }) => {
   const selector = SelectorCtx.borrow();
+  const assumer = ActorAssumerCtx.borrowListen();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const hoverAgent = useMemo(selector.api.createHoverAgent, []);
   const isSelecting = selector.api.shouldHighlight(actor);
+  const isAssumed = assumer.api.getAssumed()?.actor.id === actor.id
 
   useEffect(() => {
     return () => {
@@ -30,7 +33,7 @@ export const ActorView = ({
     <div
       onMouseEnter={() => hoverAgent.hover(actor)}
       onMouseLeave={() => hoverAgent.unhover()}
-      className={cls(styles.actorCoord, isSelecting && styles.actorHighlight)}
+      className={cls(styles.actorCoord, isSelecting && styles.actorHighlight, isAssumed && styles.actorSelected)}
       style={{
         left: x - ActorViewDimension / 2,
         top: y - ActorViewDimension / 2,

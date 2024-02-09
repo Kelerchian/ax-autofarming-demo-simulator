@@ -11,15 +11,16 @@ import {
 
 export const ActorAssumerCtx = VaettirReact.Context.make<ActorAssumer>();
 
-type AssumedActor =
+export type AssumedActor =
   | {
       actor: Sensor.Type;
       control: PlantControl;
     }
-  | {
-      actor: Robot.Type;
-      control: RobotControl;
-    };
+  | AssumedRobot;
+export type AssumedRobot = {
+  actor: Robot.Type;
+  control: RobotControl;
+};
 
 const assumedActor = (server: string, actor: Actor.Type) => {
   if (actor.t === "Robot") {

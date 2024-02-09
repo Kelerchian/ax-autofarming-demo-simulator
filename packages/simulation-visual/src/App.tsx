@@ -24,11 +24,20 @@ export const App = () => {
     visualizer.api.init();
 
     // Auto resize
-    const setFrameContainerPos = () =>
+    const setFrameContainerPos = () => {
+      const elem = simulationRef.current;
+      if (!elem) return;
+      const { clientLeft, clientTop, clientHeight, clientWidth } = elem;
+      const bounding = elem.getBoundingClientRect();
       visualizer.api.setFrameContainerPos({
-        x: simulationRef.current?.clientWidth || 0,
-        y: simulationRef.current?.clientHeight || 0,
+        x: clientLeft,
+        y: clientTop,
+        width: clientWidth,
+        height: clientHeight,
+        boundingX: bounding.x,
+        boundingY: bounding.y,
       });
+    };
 
     window.addEventListener("resize", setFrameContainerPos);
     setTimeout(setFrameContainerPos, 1);
