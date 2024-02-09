@@ -1,6 +1,7 @@
 import * as z from "zod";
 import { v4 as uuid } from "uuid";
 import { pipe } from "effect";
+import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "./window";
 
 export namespace Pos {
   const RANDOM_MINIMUM_DEVIATION = 20;
@@ -22,8 +23,8 @@ export namespace Pos {
       },
       ({ angle, radius: radius }): Type => ({
         pos: {
-          x: 500 + radius * Math.sin(angle),
-          y: 500 + radius * Math.cos(angle),
+          x: WINDOW_X_CENTER + radius * Math.sin(angle),
+          y: WINDOW_Y_CENTER + radius * Math.cos(angle),
         },
       })
     );

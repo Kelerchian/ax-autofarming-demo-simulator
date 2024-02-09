@@ -7,6 +7,7 @@ import {
   WaterPump,
 } from "../../common-types/actors";
 import { sleep } from "systemic-ts-utils/async-utils";
+import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "../../common-types/window";
 
 export type Simulation = ReturnType<(typeof Simulation)["make"]>;
 export namespace Simulation {
@@ -24,7 +25,11 @@ export namespace Simulation {
           robot: () => addActor(Robot.make({ pos: Pos.makeRandom(250) })),
           sensor: () => addActor(Sensor.make({ pos: Pos.makeRandom(250) })),
           waterPump: () =>
-            addActor(WaterPump.make({ pos: { pos: { x: 500, y: 500 } } })),
+            addActor(
+              WaterPump.make({
+                pos: { pos: { x: WINDOW_X_CENTER, y: WINDOW_Y_CENTER } },
+              })
+            ),
         };
 
         const tickRate = 30;

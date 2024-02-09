@@ -5,8 +5,11 @@ import { BoolLock } from "systemic-ts-utils/lock";
 import { sleep } from "systemic-ts-utils/async-utils";
 import { Effect, Exit } from "effect";
 import { getAllActors } from "../../../common-types/client";
-
-const ZOOM = 1;
+import {
+  WINDOW_X_CENTER,
+  WINDOW_X_SIZE,
+  WINDOW_Y_SIZE,
+} from "../../../common-types/window";
 
 export const VisualizerCtx = VaettirReact.Context.make<Visualizer>();
 
@@ -26,7 +29,10 @@ export const Visualizer = (SERVER: string) =>
         measurements: {
           fromViewport: { x: 0, y: 0 } as Pos.Type["pos"],
           containerPos: { x: 0, y: 0 } as Pos.Type["pos"],
-          containerDimension: { x: 1000, y: 1000 } as Pos.Type["pos"],
+          containerDimension: {
+            x: WINDOW_X_SIZE,
+            y: WINDOW_Y_SIZE,
+          } as Pos.Type["pos"],
           frameUnscaled: { x: 0, y: 0 } as Pos.Type["pos"],
           frameScaled: { x: 0, y: 0 } as Pos.Type["pos"],
           frameScaledAndPadded: { x: 0, y: 0 } as Pos.Type["pos"],
@@ -43,11 +49,14 @@ export const Visualizer = (SERVER: string) =>
             if (Exit.isSuccess(lastFetch)) {
               data.actors = lastFetch.value;
 
-              data.measurements.frameUnscaled = { x: 1000, y: 1000 };
+              data.measurements.frameUnscaled = {
+                x: WINDOW_X_SIZE,
+                y: WINDOW_Y_SIZE,
+              };
 
               data.measurements.frameScaled = {
-                x: data.measurements.frameUnscaled.x * 2 * ZOOM,
-                y: data.measurements.frameUnscaled.y * 2 * ZOOM,
+                x: data.measurements.frameUnscaled.x * 2,
+                y: data.measurements.frameUnscaled.y * 2,
               };
 
               data.measurements.frameScaledAndPadded = {
@@ -55,7 +64,7 @@ export const Visualizer = (SERVER: string) =>
                 y: data.measurements.frameScaled.y,
               };
 
-              data.measurements.xCenteringDiff = 500;
+              data.measurements.xCenteringDiff = WINDOW_X_CENTER;
             }
 
             channels.change.emit();
@@ -76,8 +85,8 @@ export const Visualizer = (SERVER: string) =>
         (data.actors || []).map((actor) => ({
           actor,
           pos: {
-            x: actor.pos.x * ZOOM,
-            y: actor.pos.y * ZOOM,
+            x: actor.pos.x,
+            y: actor.pos.y,
           },
         }));
 
@@ -93,16 +102,19 @@ export const Visualizer = (SERVER: string) =>
           y: pos.y - center.y,
         };
         const descaled = {
-          x: relativeToCenter.x / ZOOM,
-          y: relativeToCenter.y / ZOOM,
+          x: relativeToCenter.x,
+          y: relativeToCenter.y,
         };
         return descaled;
       };
 
       const setFrameContainerPos = () => {
-        data.measurements.containerDimension = { x: 1000, y: 1000 };
+        data.measurements.containerDimension = {
+          x: WINDOW_X_SIZE,
+          y: WINDOW_Y_SIZE,
+        };
         data.measurements.containerPos = { x: 0, y: 0 };
-        data.measurements.fromViewport = { x: 1000, y: 1000 };
+        data.measurements.fromViewport = { x: WINDOW_X_SIZE, y: WINDOW_Y_SIZE };
       };
 
       return {

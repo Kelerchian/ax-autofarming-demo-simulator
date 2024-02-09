@@ -8,6 +8,7 @@ import { ActorAssumer, ActorAssumerCtx } from "./worker/assume";
 import { ActorView } from "./ActorView";
 import { AssumeView } from "./AssumeView";
 import { Selector, SelectorCtx } from "./worker/selector";
+import { WINDOW_X_SIZE, WINDOW_Y_SIZE } from "../../common-types/window";
 
 const SERVER = "http://localhost:3000";
 
@@ -47,10 +48,10 @@ export const App = () => {
               ref={simulationRef}
               className={cls(styles.simulation)}
               style={{
-                width: 1000,
-                maxWidth: 1000,
-                height: 1000,
-                maxHeight: 1000,
+                width: WINDOW_X_SIZE,
+                maxWidth: WINDOW_X_SIZE,
+                height: WINDOW_Y_SIZE,
+                maxHeight: WINDOW_Y_SIZE,
               }}
             >
               {coords.map((coord) => (
