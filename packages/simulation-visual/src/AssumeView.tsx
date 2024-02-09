@@ -166,7 +166,6 @@ export const AssumeControlRobotMoveTo = (props: {
   const visualizer = VisualizerCtx.borrow();
   useEffect(() => {
     const captureClick = (e: MouseEvent) => {
-      console.log(e);
       props.onExec({ x: e.x, y: e.y });
       window.removeEventListener("mousedown", captureClick);
     };

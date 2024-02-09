@@ -102,7 +102,6 @@ export namespace Robot {
 
       export const moveToCoord = (robot: Type, task: Task.MoveToCoordinate) => {
         const { from, to, start } = task;
-        console.log(task);
         const deltaX = to.pos.x - from.pos.x;
         const deltaY = to.pos.y - from.pos.y;
         const totalDist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
