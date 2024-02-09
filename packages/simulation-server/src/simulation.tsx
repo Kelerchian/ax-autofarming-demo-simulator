@@ -21,10 +21,10 @@ export namespace Simulation {
         };
 
         const add = {
-          robot: () => addActor(Robot.make({ pos: Pos.makeRandom() })),
-          sensor: () => addActor(Sensor.make({ pos: Pos.makeRandom() })),
+          robot: () => addActor(Robot.make({ pos: Pos.makeRandom(250) })),
+          sensor: () => addActor(Sensor.make({ pos: Pos.makeRandom(250) })),
           waterPump: () =>
-            addActor(WaterPump.make({ pos: { pos: { x: 0, y: 0 } } })),
+            addActor(WaterPump.make({ pos: { pos: { x: 500, y: 500 } } })),
         };
 
         const tickRate = 30;

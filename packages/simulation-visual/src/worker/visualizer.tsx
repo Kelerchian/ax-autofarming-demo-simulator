@@ -3,11 +3,10 @@ import "../App.scss";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Effect, Exit, pipe } from "effect";
+import { Effect, Exit } from "effect";
 import { getAllActors } from "../../../common-types/client";
 
-const COORD_MULTIPLIER = 10;
-const COORD_PADDING = 100;
+const ZOOM = 1;
 
 export const VisualizerCtx = VaettirReact.Context.make<Visualizer>();
 
@@ -27,7 +26,7 @@ export const Visualizer = (SERVER: string) =>
         measurements: {
           fromViewport: { x: 0, y: 0 } as Pos.Type["pos"],
           containerPos: { x: 0, y: 0 } as Pos.Type["pos"],
-          containerDimension: { x: -Infinity, y: -Infinity } as Pos.Type["pos"],
+          containerDimension: { x: 1000, y: 1000 } as Pos.Type["pos"],
           frameUnscaled: { x: 0, y: 0 } as Pos.Type["pos"],
           frameScaled: { x: 0, y: 0 } as Pos.Type["pos"],
           frameScaledAndPadded: { x: 0, y: 0 } as Pos.Type["pos"],
@@ -44,42 +43,19 @@ export const Visualizer = (SERVER: string) =>
             if (Exit.isSuccess(lastFetch)) {
               data.actors = lastFetch.value;
 
-              let maxX = 0;
-              let maxY = 0;
-
-              // calculate data.dimension
-              lastFetch.value.forEach((item) => {
-                maxX = Math.max(Math.abs(item.pos.x), maxX);
-                maxY = Math.max(Math.abs(item.pos.y), maxY);
-              });
-              //
-              data.measurements.frameUnscaled = { x: maxX, y: maxY };
+              data.measurements.frameUnscaled = { x: 1000, y: 1000 };
 
               data.measurements.frameScaled = {
-                x: data.measurements.frameUnscaled.x * 2 * COORD_MULTIPLIER,
-                y: data.measurements.frameUnscaled.y * 2 * COORD_MULTIPLIER,
+                x: data.measurements.frameUnscaled.x * 2 * ZOOM,
+                y: data.measurements.frameUnscaled.y * 2 * ZOOM,
               };
 
               data.measurements.frameScaledAndPadded = {
-                x: data.measurements.frameScaled.x + COORD_PADDING * 2,
-                y: data.measurements.frameScaled.y + COORD_PADDING * 2,
+                x: data.measurements.frameScaled.x,
+                y: data.measurements.frameScaled.y,
               };
 
-              data.measurements.xCenteringDiff = (() => {
-                if (
-                  data.measurements.containerDimension.x >
-                    data.measurements.frameScaledAndPadded.x &&
-                  data.measurements.containerDimension.x !== 0
-                ) {
-                  const screenCenterX =
-                    data.measurements.containerDimension.x / 2;
-                  const prerenderCenterX =
-                    data.measurements.frameScaledAndPadded.x / 2;
-                  const diff = screenCenterX - prerenderCenterX;
-                  return diff;
-                }
-                return 0;
-              })();
+              data.measurements.xCenteringDiff = 500;
             }
 
             channels.change.emit();
@@ -100,58 +76,33 @@ export const Visualizer = (SERVER: string) =>
         (data.actors || []).map((actor) => ({
           actor,
           pos: {
-            x:
-              (actor.pos.x + data.measurements.frameUnscaled.x) *
-                COORD_MULTIPLIER +
-              COORD_PADDING +
-              data.measurements.xCenteringDiff,
-            y:
-              (actor.pos.y + data.measurements.frameUnscaled.y) *
-                COORD_MULTIPLIER +
-              COORD_PADDING,
+            x: actor.pos.x * ZOOM,
+            y: actor.pos.y * ZOOM,
           },
         }));
 
       const viewportCoordinateToMapCoordinate = (
         pos: Pos.Type["pos"]
       ): Pos.Type["pos"] => {
-        const {
-          fromViewport: { x, y },
-          containerDimension: { x: width, y: height },
-        } = data.measurements;
         const center = {
-          x: x + width / 2,
-          y: y + height / 2,
+          x: 0,
+          y: 0,
         };
         const relativeToCenter = {
           x: pos.x - center.x,
           y: pos.y - center.y,
         };
         const descaled = {
-          x: relativeToCenter.x / COORD_MULTIPLIER,
-          y: relativeToCenter.y / COORD_MULTIPLIER,
+          x: relativeToCenter.x / ZOOM,
+          y: relativeToCenter.y / ZOOM,
         };
         return descaled;
       };
 
-      const setFrameContainerPos = ({
-        x,
-        y,
-        width,
-        height,
-        boundingX,
-        boundingY,
-      }: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        boundingX: number;
-        boundingY: number;
-      }) => {
-        data.measurements.containerDimension = { x: width, y: height };
-        data.measurements.containerPos = { x, y };
-        data.measurements.fromViewport = { x: boundingX, y: boundingY };
+      const setFrameContainerPos = () => {
+        data.measurements.containerDimension = { x: 1000, y: 1000 };
+        data.measurements.containerPos = { x: 0, y: 0 };
+        data.measurements.fromViewport = { x: 1000, y: 1000 };
       };
 
       return {

@@ -16,7 +16,6 @@ export const App = () => {
   const selector = VaettirReact.useOwned(() => Selector(visualizer));
   const assumer = VaettirReact.useOwned(() => ActorAssumer(SERVER));
   const simulationRef = useRef<HTMLDivElement>(null);
-  const dimension = visualizer.api.frame();
   const coords = visualizer.api.coords();
 
   useEffect(() => {
@@ -27,16 +26,7 @@ export const App = () => {
     const setFrameContainerPos = () => {
       const elem = simulationRef.current;
       if (!elem) return;
-      const { clientLeft, clientTop, clientHeight, clientWidth } = elem;
-      const bounding = elem.getBoundingClientRect();
-      visualizer.api.setFrameContainerPos({
-        x: clientLeft,
-        y: clientTop,
-        width: clientWidth,
-        height: clientHeight,
-        boundingX: bounding.x,
-        boundingY: bounding.y,
-      });
+      visualizer.api.setFrameContainerPos();
     };
 
     window.addEventListener("resize", setFrameContainerPos);
@@ -56,7 +46,12 @@ export const App = () => {
             <div
               ref={simulationRef}
               className={cls(styles.simulation)}
-              style={{ width: dimension.x, height: dimension.y }}
+              style={{
+                width: 1000,
+                maxWidth: 1000,
+                height: 1000,
+                maxHeight: 1000,
+              }}
             >
               {coords.map((coord) => (
                 <ActorView key={coord.actor.id} actorCoord={coord} />

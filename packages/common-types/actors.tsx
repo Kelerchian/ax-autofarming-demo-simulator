@@ -22,8 +22,8 @@ export namespace Pos {
       },
       ({ angle, radius: radius }): Type => ({
         pos: {
-          x: radius * Math.sin(angle),
-          y: radius * Math.cos(angle),
+          x: 500 + radius * Math.sin(angle),
+          y: 500 + radius * Math.cos(angle),
         },
       })
     );
@@ -86,7 +86,7 @@ export namespace Robot {
     };
 
     export namespace Step {
-      const ROBOT_SPEED = 0.006; // unit / milliseconds
+      const ROBOT_SPEED = 0.06; // unit / milliseconds
       const WATERING_DURATION = 1000; // milliseconds
 
       export const step = (robot: Type) => {
@@ -101,6 +101,7 @@ export namespace Robot {
 
       export const moveToCoord = (robot: Type, task: Task.MoveToCoordinate) => {
         const { from, to, start } = task;
+        console.log(task);
         const deltaX = to.pos.x - from.pos.x;
         const deltaY = to.pos.y - from.pos.y;
         const totalDist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -112,6 +113,7 @@ export namespace Robot {
             x: from.pos.x + currentDist * Math.cos(angle),
             y: from.pos.y + currentDist * Math.sin(angle),
           }));
+          task.from = { pos: robot.pos };
           return;
         }
 
