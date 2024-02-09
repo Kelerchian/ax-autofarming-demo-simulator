@@ -87,7 +87,7 @@ export namespace Robot {
     };
 
     export namespace Step {
-      const ROBOT_SPEED = 0.06; // unit / milliseconds
+      const ROBOT_SPEED = 0.5; // unit / milliseconds
       const WATERING_DURATION = 1000; // milliseconds
 
       export const step = (robot: Type) => {
@@ -114,7 +114,6 @@ export namespace Robot {
             x: from.pos.x + currentDist * Math.cos(angle),
             y: from.pos.y + currentDist * Math.sin(angle),
           }));
-          task.from = { pos: robot.pos };
           return;
         }
 
