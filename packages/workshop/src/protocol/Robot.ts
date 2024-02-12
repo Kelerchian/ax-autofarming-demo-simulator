@@ -14,7 +14,7 @@ namespace States {
     export const Idle = machine
         .designState("Idle")
         .withPayload<PlantRequest>()
-        .command("moveToPlant", [Events.PlantRequestedWater], (context) => [context.self])
+        .command("moveToPlant", [Events.PlantRequestedWater], (context, position: { x: number, y: number }) => [context.self])
         .finish()
 
     export const MovingToPlant = machine
@@ -96,18 +96,19 @@ States.FinishedWateringPlant.react(
 
 async function loop(sdk: Actyx) {
     while (true) {
+        // NOTE(duarte): this query isn't quite working yet, it yields all created events, regardless
+        // NOTE(duarte): After the first run (which seems to work) it "blocks" and doesnt progress further even though the query still returns events
+        // NOTE(duarte): if the InProgress/Moving/wtvr event is added, I'd filter here
         const unwateredPlant = await sdk.queryAql(`
-            PRAGMA features := interpolation subQuery
+            PRAGMA features := subQuery interpolation
 
-            FROM '${machine.swarmName}:Created'
+            FROM "${machine.swarmName}"
+            FILTER _.type = "Created"
 
-            LET doneEvents :=
-                FROM \`${machine.swarmName}:{_.requestId}\`
-                & '${machine.swarmName}:PlantHasWater'
-
+            LET doneEvents := FROM \`${machine.swarmName}:{_.requestId}\` FILTER _.type = "Done"
             LET done := IsDefined(doneEvents[0])
 
-            FILTER !done
+            FILTER !inProgess & !done
         `).then((responses) => (
             responses.filter(
                 (event): event is AqlEventMessage => (event.type === "event")
@@ -132,10 +133,12 @@ async function loop(sdk: Actyx) {
         for await (const state of runner) {
             if (state.is(States.Initial)) {
                 console.log("initial")
-                state.cast().commands()?.create(payload)
+                // NOTE(duarte): I commented this out because theres a second Created event I dont know where it comes from
+                // The first one is sent from the sensor, the second IDK
+                // state.cast().commands()?.create(payload)
             } else if (state.is(States.Idle)) {
                 console.log("idle")
-                state.cast().commands()?.moveToPlant()
+                state.cast().commands()?.moveToPlant(state.payload.pos)
             } else if (state.is(States.MovingToPlant)) {
                 console.log("moving")
                 state.cast().commands()?.reachedPlant()

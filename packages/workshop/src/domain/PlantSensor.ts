@@ -6,23 +6,13 @@ import * as z from "zod"
 import { randomUUID } from "crypto"
 import { Sensor as WaterSensor } from "../../../common-types/actors"
 
-const MINIMUM_WATER_LEVEL = 50
+const MINIMUM_WATER_LEVEL = 75
 const RESTORE_WATER_LEVEL = 80
 const MAXIMUM_WATER_LEVEL = 100
 
 
 export const SpawnedSensor = z.object({ id: z.string(), pos: z.object({ x: z.number(), y: z.number() }) })
 export type SpawnedSensor = z.TypeOf<typeof SpawnedSensor>;
-
-// export const WaterSensor = z.object(
-//     {
-//         t: z.string(),
-//         id: z.string(),
-//         pos: z.object({ x: z.number(), y: z.number() }),
-//         data: z.object({ decay: z.number(), water: z.number(), })
-//     }
-// );
-// export type WaterSensor = z.TypeOf<typeof WaterSensor>;
 
 async function readSensor(id: string): Promise<WaterSensor.Type> {
     const response = await fetch(`http://localhost:3000/id/${id}`)
@@ -41,14 +31,17 @@ async function plantSensorLoop(actyx: Actyx) {
         const waterSensor = await readSensor(sensor.id)
 
         if (waterSensor.data.water < MINIMUM_WATER_LEVEL) {
-            console.log("requesting water")
             const requestId = randomUUID()
+            const tags = ["WateringRobot", `WateringRobot:${requestId}`]
+
+            // NOTE(duarte): this is where I publish the event that should trigger everything else
             actyx.publish({
                 event: {
                     requestId,
                     pos: sensor.pos,
+                    type: "Created"
                 },
-                tags: ["WateringRobot", `WateringRobot:${requestId}`, "WateringRobot:Created"]
+                tags
             })
 
             while ((await readSensor(sensor.id)).data.water < RESTORE_WATER_LEVEL) {
@@ -56,12 +49,7 @@ async function plantSensorLoop(actyx: Actyx) {
             }
 
             console.log("got water back")
-            actyx.publish({
-                event: {
-                    plantId: sensor.id,
-                },
-                tags: ["WateringRobot", `WateringRobot:${requestId}`, "WateringRobot:PlantHasWater"]
-            })
+            actyx.publish({ event: { plantId: sensor.id, }, tags })
         }
     }
 }

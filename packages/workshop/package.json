@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start:sensor": "npm run build && node dist/domain/PlantSensor.js",
-    "start:robot": "npm run build && node dist/protocol/Robot.js",
+    "start:sensor": "npm run build && node dist/workshop/src/domain/PlantSensor.js",
+    "start:robot": "npm run build && node dist/workshop/src/protocol/Robot.js",
     "clean": "rimraf dist",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

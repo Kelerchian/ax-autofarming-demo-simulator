@@ -1,7 +1,8 @@
 {
   "workspaces": [
     "packages/simulation-server",
-    "packages/simulation-visual"
+    "packages/simulation-visual",
+    "packages/workshop"
   ],
   "scripts": {
     "dev:sim": "cd packages/simulation-server && npm run start",

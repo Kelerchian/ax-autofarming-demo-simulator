@@ -1,24 +1,27 @@
 import { AppManifest } from "@actyx/sdk";
 import { MachineEvent, SwarmProtocol } from "@actyx/machine-runner";
 
-export type PlantRequest = { pos: { x: number, y: number }, requestId: string }
+export type RequestId = { requestId: string }
+export type PlantRequest = { pos: { x: number, y: number } } & RequestId
 
 export namespace Events {
     export const PlantRequestedWater = MachineEvent
         .design("Created")
         .withPayload<PlantRequest>();
 
+    // TODO(duarte): I think a moving state would be helpful to filter out requests that are being acted on (just to provide more granularity)
+
     export const ReachedPlant = MachineEvent
         .design("ReachedPlant")
-        .withoutPayload();
+        .withPayload<RequestId>();
 
     export const PlantHasWater = MachineEvent
         .design("PlantHasWater")
-        .withoutPayload();
+        .withPayload<RequestId>();
 
     export const Done = MachineEvent
         .design("Done")
-        .withoutPayload();
+        .withPayload<RequestId>();
 
     export const All = [
         PlantRequestedWater,
