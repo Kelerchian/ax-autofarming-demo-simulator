@@ -8,6 +8,7 @@ import { ActorAssumer, ActorAssumerCtx } from "./worker/assume";
 import { ActorView } from "./ActorView";
 import { AssumeView } from "./AssumeView";
 import { Selector, SelectorCtx } from "./worker/selector";
+import { WINDOW_X_SIZE, WINDOW_Y_SIZE } from "../../common-types/window";
 
 const SERVER = "http://localhost:3000";
 
@@ -16,7 +17,6 @@ export const App = () => {
   const selector = VaettirReact.useOwned(() => Selector(visualizer));
   const assumer = VaettirReact.useOwned(() => ActorAssumer(SERVER));
   const simulationRef = useRef<HTMLDivElement>(null);
-  const dimension = visualizer.api.frame();
   const coords = visualizer.api.coords();
 
   useEffect(() => {
@@ -27,16 +27,7 @@ export const App = () => {
     const setFrameContainerPos = () => {
       const elem = simulationRef.current;
       if (!elem) return;
-      const { clientLeft, clientTop, clientHeight, clientWidth } = elem;
-      const bounding = elem.getBoundingClientRect();
-      visualizer.api.setFrameContainerPos({
-        x: clientLeft,
-        y: clientTop,
-        width: clientWidth,
-        height: clientHeight,
-        boundingX: bounding.x,
-        boundingY: bounding.y,
-      });
+      visualizer.api.setFrameContainerPos();
     };
 
     window.addEventListener("resize", setFrameContainerPos);
@@ -56,7 +47,12 @@ export const App = () => {
             <div
               ref={simulationRef}
               className={cls(styles.simulation)}
-              style={{ width: dimension.x, height: dimension.y }}
+              style={{
+                width: WINDOW_X_SIZE,
+                maxWidth: WINDOW_X_SIZE,
+                height: WINDOW_Y_SIZE,
+                maxHeight: WINDOW_Y_SIZE,
+              }}
             >
               {coords.map((coord) => (
                 <ActorView key={coord.actor.id} actorCoord={coord} />

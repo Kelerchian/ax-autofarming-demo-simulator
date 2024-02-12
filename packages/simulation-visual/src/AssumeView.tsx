@@ -166,12 +166,7 @@ export const AssumeControlRobotMoveTo = (props: {
   const visualizer = VisualizerCtx.borrow();
   useEffect(() => {
     const captureClick = (e: MouseEvent) => {
-      const { screenX: x, screenY: y } = e;
-      const simCoord = visualizer.api.viewportCoordinateToMapCoordinate({
-        x,
-        y,
-      });
-      props.onExec(simCoord);
+      props.onExec({ x: e.x, y: e.y });
       window.removeEventListener("mousedown", captureClick);
     };
     window.addEventListener("mousedown", captureClick);
