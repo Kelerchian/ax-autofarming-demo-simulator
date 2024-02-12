@@ -33,9 +33,6 @@ export const Visualizer = (SERVER: string) =>
             x: WINDOW_X_SIZE,
             y: WINDOW_Y_SIZE,
           } as Pos.Type["pos"],
-          frameUnscaled: { x: 0, y: 0 } as Pos.Type["pos"],
-          frameScaled: { x: 0, y: 0 } as Pos.Type["pos"],
-          frameScaledAndPadded: { x: 0, y: 0 } as Pos.Type["pos"],
           xCenteringDiff: 0,
         },
       };
@@ -48,22 +45,6 @@ export const Visualizer = (SERVER: string) =>
 
             if (Exit.isSuccess(lastFetch)) {
               data.actors = lastFetch.value;
-
-              data.measurements.frameUnscaled = {
-                x: WINDOW_X_SIZE,
-                y: WINDOW_Y_SIZE,
-              };
-
-              data.measurements.frameScaled = {
-                x: data.measurements.frameUnscaled.x * 2,
-                y: data.measurements.frameUnscaled.y * 2,
-              };
-
-              data.measurements.frameScaledAndPadded = {
-                x: data.measurements.frameScaled.x,
-                y: data.measurements.frameScaled.y,
-              };
-
               data.measurements.xCenteringDiff = WINDOW_X_CENTER;
             }
 
@@ -71,9 +52,6 @@ export const Visualizer = (SERVER: string) =>
             await sleep(30);
           }
         });
-
-      const frame = (): Readonly<Pos.Type["pos"]> =>
-        data.measurements.frameScaledAndPadded;
 
       const actorsMap = (): Actor.ActorsMap =>
         (data.actors || []).reduce((acc, x) => {
@@ -92,36 +70,14 @@ export const Visualizer = (SERVER: string) =>
 
       const viewportCoordinateToMapCoordinate = (
         pos: Pos.Type["pos"]
-      ): Pos.Type["pos"] => {
-        const center = {
-          x: 0,
-          y: 0,
-        };
-        const relativeToCenter = {
-          x: pos.x - center.x,
-          y: pos.y - center.y,
-        };
-        const descaled = {
-          x: relativeToCenter.x,
-          y: relativeToCenter.y,
-        };
-        return descaled;
-      };
-
-      const setFrameContainerPos = () => {
-        data.measurements.containerDimension = {
-          x: WINDOW_X_SIZE,
-          y: WINDOW_Y_SIZE,
-        };
-        data.measurements.containerPos = { x: 0, y: 0 };
-        data.measurements.fromViewport = { x: WINDOW_X_SIZE, y: WINDOW_Y_SIZE };
-      };
+      ): Pos.Type["pos"] => ({
+        x: pos.x,
+        y: pos.y,
+      });
 
       return {
         init,
-        frame,
         coords,
-        setFrameContainerPos,
         actorsMap,
         viewportCoordinateToMapCoordinate,
       };

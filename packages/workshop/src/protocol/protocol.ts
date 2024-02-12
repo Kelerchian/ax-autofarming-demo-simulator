@@ -1,7 +1,7 @@
 import { AppManifest } from "@actyx/sdk";
 import { MachineEvent, SwarmProtocol } from "@actyx/machine-runner";
 
-export type PlantRequest = { plantId: string, requestId: string }
+export type PlantRequest = { pos: { x: number, y: number }, requestId: string }
 
 export namespace Events {
     export const PlantRequestedWater = MachineEvent
@@ -28,7 +28,7 @@ export namespace Events {
     ] as const;
 }
 
-export const protocol = SwarmProtocol.make("wateringRobot", Events.All);
+export const protocol = SwarmProtocol.make("WateringRobot", Events.All);
 
 export const manifest: AppManifest = {
     appId: "com.example.plant-farm",

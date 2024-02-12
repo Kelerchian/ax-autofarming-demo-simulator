@@ -22,20 +22,6 @@ export const App = () => {
   useEffect(() => {
     // Init
     visualizer.api.init();
-
-    // Auto resize
-    const setFrameContainerPos = () => {
-      const elem = simulationRef.current;
-      if (!elem) return;
-      visualizer.api.setFrameContainerPos();
-    };
-
-    window.addEventListener("resize", setFrameContainerPos);
-    setTimeout(setFrameContainerPos, 1);
-
-    return () => {
-      window.removeEventListener("resize", setFrameContainerPos);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visualizer.id]);
 
