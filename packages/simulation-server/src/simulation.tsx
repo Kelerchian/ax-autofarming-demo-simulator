@@ -18,7 +18,7 @@ export namespace Simulation {
 
         const addActor = (actor: Actor.Type) => {
           actors.set(actor.id, actor);
-          return actor.id;
+          return { id: actor.id, pos: actor.pos };
         };
 
         const add = {

@@ -53,7 +53,7 @@ States.Initial.react(
     [Events.PlantRequestedWater],
     States.Idle,
     (_, event) => ({
-        plantId: event.payload.plantId,
+        pos: event.payload.pos,
         requestId: event.payload.requestId,
     })
 )
@@ -62,7 +62,7 @@ States.Idle.react(
     [Events.PlantRequestedWater],
     States.MovingToPlant,
     (state, _) => ({
-        plantId: state.self.plantId,
+        pos: state.self.pos,
         requestId: state.self.requestId,
     })
 )
@@ -71,7 +71,7 @@ States.MovingToPlant.react(
     [Events.ReachedPlant],
     States.WateringPlant,
     (state, _) => ({
-        plantId: state.self.plantId,
+        pos: state.self.pos,
         requestId: state.self.requestId,
     })
 )
@@ -80,7 +80,7 @@ States.WateringPlant.react(
     [Events.PlantHasWater],
     States.FinishedWateringPlant,
     (state, _) => ({
-        plantId: state.self.plantId,
+        pos: state.self.pos,
         requestId: state.self.requestId,
     })
 )
@@ -89,23 +89,21 @@ States.FinishedWateringPlant.react(
     [Events.Done],
     States.Done,
     (state, _) => ({
-        plantId: state.self.plantId,
+        pos: state.self.pos,
         requestId: state.self.requestId,
     })
 )
 
-export async function main() {
-    const sdk = await Actyx.of(manifest);
-
+async function loop(sdk: Actyx) {
     while (true) {
         const unwateredPlant = await sdk.queryAql(`
-            FROM ${machine.swarmName}
-            FILTER _.type = ${Events.PlantRequestedWater.type}
+            PRAGMA features := interpolation subQuery
+
+            FROM '${machine.swarmName}:Created'
 
             LET doneEvents :=
                 FROM \`${machine.swarmName}:{_.requestId}\`
-                FILTER _.type = ${Events.PlantHasWater.type}
-                END ?? []
+                & '${machine.swarmName}:PlantHasWater'
 
             LET done := IsDefined(doneEvents[0])
 
@@ -129,19 +127,37 @@ export async function main() {
             undefined
         )
 
+        console.log("machine created")
+
         for await (const state of runner) {
-            if (state.is(States.Idle)) {
+            if (state.is(States.Initial)) {
+                console.log("initial")
+                state.cast().commands()?.create(payload)
+            } else if (state.is(States.Idle)) {
+                console.log("idle")
                 state.cast().commands()?.moveToPlant()
             } else if (state.is(States.MovingToPlant)) {
+                console.log("moving")
                 state.cast().commands()?.reachedPlant()
             } else if (state.is(States.WateringPlant)) {
+                console.log("watering")
                 state.cast().commands()?.stopWateringPlant()
             } else if (state.is(States.FinishedWateringPlant)) {
+                console.log("finished")
                 state.cast().commands()?.done()
             }
         }
 
         await sleep(100)
+    }
+}
+
+export async function main() {
+    const sdk = await Actyx.of(manifest);
+    try {
+        await loop(sdk)
+    } finally {
+        sdk.dispose()
     }
 }
 

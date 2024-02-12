@@ -4,7 +4,7 @@ import { pipe } from "effect";
 import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "./window";
 
 export namespace Pos {
-  const RANDOM_MINIMUM_DEVIATION = 20;
+  const RANDOM_MINIMUM_DEVIATION = 100;
   export const Type = z.object({
     pos: z.object({
       x: z.number(),

@@ -14,6 +14,7 @@ import { Pos, Robot, Sensor } from "../../common-types/actors";
 import { VisualizerCtx } from "./worker/visualizer";
 import React from "react";
 import { sleep } from "systemic-ts-utils/async-utils";
+import { WINDOW_X_SIZE, WINDOW_Y_SIZE } from "../../common-types/window";
 
 export const AssumeView = React.memo(() => {
   const [selecting, setSelecting] = useState(false);
@@ -253,7 +254,10 @@ export const AssumeControlRobotMoveTo = (props: {
   const visualizer = VisualizerCtx.borrow();
   useEffect(() => {
     const captureClick = (e: MouseEvent) => {
-      props.onExec({ x: e.x, y: e.y });
+      props.onExec({
+        x: Math.max(0, Math.min(e.x, WINDOW_X_SIZE)),
+        y: Math.max(0, Math.min(e.y, WINDOW_Y_SIZE)),
+      });
       window.removeEventListener("mousedown", captureClick);
     };
     window.addEventListener("mousedown", captureClick);

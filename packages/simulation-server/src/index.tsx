@@ -15,6 +15,16 @@ import { Actor, Robot, Sensor } from "../../common-types/actors";
 
   server.get("/", (_req, reply) => reply.send("world"));
 
+  server.post("/spawn/robot", (_, reply) => {
+    const info = simulation.api.add.robot();
+    return reply.code(200).send(info);
+  });
+
+  server.post("/spawn/sensor", (_, reply) => {
+    const info = simulation.api.add.sensor();
+    return reply.code(200).send(info);
+  });
+
   server.post("/action", (req, reply) => {
     const res = Actor.Actions.safeParse(req.body);
     if (!res.success) {
