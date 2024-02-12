@@ -15,7 +15,7 @@ const SERVER = "http://localhost:3000";
 export const App = () => {
   const visualizer = VaettirReact.useOwned(() => Visualizer(SERVER));
   const selector = VaettirReact.useOwned(() => Selector(visualizer));
-  const assumer = VaettirReact.useOwned(() => ActorAssumer(SERVER));
+  const assumer = VaettirReact.useOwned(() => ActorAssumer(SERVER, visualizer));
   const simulationRef = useRef<HTMLDivElement>(null);
   const coords = visualizer.api.coords();
 

@@ -1,7 +1,7 @@
 import { Simulation } from "./simulation";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { Actor, Robot } from "../../common-types/actors";
+import { Actor, Robot, Sensor } from "../../common-types/actors";
 
 (async () => {
   const server = Fastify({ logger: false });
@@ -27,15 +27,26 @@ import { Actor, Robot } from "../../common-types/actors";
     if (!actor) {
       return reply.code(400).send(`actor not found id=${actorId}`);
     }
-    if (actor.t !== "Robot") {
-      return reply
-        .code(400)
-        .send(`actor is not a robot ${JSON.stringify(actor)}`);
+
+    const whenRobotAction = Robot.Actions.Actions.safeParse(action);
+    if (whenRobotAction.success && actor.t === "Robot") {
+      Robot.Actions.apply(simulation.api.getAll(), actor, whenRobotAction.data);
+      return reply.code(204).send(null);
     }
 
-    Robot.Actions.apply(simulation.api.getAll(), actor, action);
+    const whenSensorAction = Sensor.Actions.Actions.safeParse(action);
+    if (whenSensorAction.success && actor.t === "Sensor") {
+      Sensor.Actions.apply(
+        simulation.api.getAll(),
+        actor,
+        whenSensorAction.data
+      );
+      return reply.code(204).send(null);
+    }
 
-    return reply.code(204).send(null);
+    return reply
+      .code(400)
+      .send(`actor is not a robot ${JSON.stringify(actor)}`);
   });
 
   server.get<{ Params: { actorId: string } }>("/id/:actorId", (req, reply) => {

@@ -8,18 +8,19 @@ import {
   makePlantControl,
   makeRobotControl,
 } from "../../../common-types/client";
+import { sleep } from "systemic-ts-utils/async-utils";
+import { Visualizer } from "./visualizer";
 
 export const ActorAssumerCtx = VaettirReact.Context.make<ActorAssumer>();
 
-export type AssumedActor =
-  | {
-      actor: Sensor.Type;
-      control: PlantControl;
-    }
-  | AssumedRobot;
+export type AssumedActor = AssumedSensor | AssumedRobot;
 export type AssumedRobot = {
   actor: Robot.Type;
   control: RobotControl;
+};
+export type AssumedSensor = {
+  actor: Sensor.Type;
+  control: PlantControl;
 };
 
 const assumedActor = (server: string, actor: Actor.Type) => {
@@ -38,14 +39,33 @@ const assumedActor = (server: string, actor: Actor.Type) => {
 };
 
 export type ActorAssumer = ReturnType<typeof ActorAssumer>;
-export const ActorAssumer = (server: string) =>
+export const ActorAssumer = (server: string, visualizer: Visualizer) =>
   Vaettir.build()
-    .api(({ channels }) => {
+    .api(({ channels, isDestroyed }) => {
       const data = {
         isAssuming: false,
         assumingLock: OptimisticLock.make(),
         assumedActor: null as null | AssumedActor,
+        updateLock: OptimisticLock.make(),
       };
+
+      const attemptAutoUpdate = () =>
+        data.updateLock.use(async (status) => {
+          const assumedActor = data.assumedActor;
+          if (!assumedActor) return;
+          while (status.isActive() && !isDestroyed()) {
+            const newUpdate = visualizer.api
+              .actorsMap()
+              .get(assumedActor.actor.id);
+
+            if (newUpdate?.t === assumedActor.actor.t) {
+              assumedActor.actor = newUpdate;
+              channels.change.emit();
+            }
+
+            await sleep(2000);
+          }
+        });
 
       return {
         isAssuming: () => data.isAssuming,
@@ -58,6 +78,7 @@ export const ActorAssumer = (server: string) =>
               data.assumedActor = assumedActor(server, actor);
               data.isAssuming = false;
               channels.change.emit();
+              attemptAutoUpdate();
             }
           }),
         getAssumed: () => data.assumedActor,

@@ -32,7 +32,10 @@ export const Selector = (visualizer: Visualizer) =>
 
       return {
         selections: () => Array.from(data.coords.values()),
-        refresh: () => (data.coords = visualizer.api.actorsMap()),
+        refresh: () => {
+          data.coords = visualizer.api.actorsMap();
+          channels.change.emit();
+        },
         registerListener: (fn: (actor: Actor.Type) => unknown) => {
           const unsub = data.onClick.sub(fn);
           return unsub;

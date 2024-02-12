@@ -28,6 +28,12 @@ export namespace Pos {
         },
       })
     );
+
+  export const distance = (a: Type["pos"], b: Type["pos"]) => {
+    const x = a.x - b.x;
+    const y = a.y - b.y;
+    return Math.sqrt(x * x + y * y);
+  };
 }
 
 export const Id = z.object({ id: z.string() });
@@ -75,11 +81,14 @@ export namespace Robot {
         if (action.t === "WaterPlant") {
           const sensor = actors.get(action.sensorId);
           if (sensor?.t === "Sensor") {
-            robot.data.task = {
-              t: "WaterPlant",
-              start: Date.now(),
-              sensor,
-            };
+            const distance = Pos.distance(robot.pos, sensor.pos);
+            if (Sensor.WaterLevel.withinWateringProximity(distance)) {
+              return {
+                t: "WaterPlant",
+                start: Date.now(),
+                sensor,
+              };
+            }
           }
         }
         return null;
@@ -88,7 +97,7 @@ export namespace Robot {
 
     export namespace Step {
       const ROBOT_SPEED = 0.5; // unit / milliseconds
-      const WATERING_DURATION = 1000; // milliseconds
+      const WATERING_DURATION = 3000; // milliseconds
 
       export const step = (robot: Type) => {
         const task = robot.data.task;
@@ -117,20 +126,15 @@ export namespace Robot {
         }
 
         // robot reached destination
-        console.log(robot.id, "reached destination for", robot.data.task?.t);
         robot.pos = { ...to.pos };
         robot.data.task = null;
       };
 
       export const waterPlant = (robot: Type, task: Task.WaterPlant) => {
-        if (Date.now() < task.start + WATERING_DURATION) return;
         const sensor = task.sensor;
-        const xDist = robot.pos.x - sensor.pos.x;
-        const yDist = robot.pos.y - sensor.pos.y;
-        const distance = Math.sqrt(xDist * xDist + yDist * yDist);
-
-        if (distance > Sensor.WaterMinimumProximity) return;
-
+        if (Date.now() < task.start + WATERING_DURATION) {
+          return;
+        }
         Sensor.WaterLevel.applyWater(sensor);
         robot.data.task = null;
       };
@@ -180,15 +184,15 @@ export namespace Robot {
 }
 
 export namespace Sensor {
-  export const WaterMinimumProximity = 5;
+  export const WaterMinimumProximity = 50;
 
   export const Type = ActorBase.and(
     z.object({
       t: z.literal("Sensor"),
       data: z.object({
         // 100-150 - overwatered
-        // 80-100 - ideal
-        // 0-80 -  underwatered
+        // 40-100 - ideal
+        // 0-40 -  underwatered
         water: z.number(),
 
         /**
@@ -212,6 +216,33 @@ export namespace Sensor {
     data: { water: 100, decay: Math.max(0.002 || decay, 0.002) },
   });
 
+  export namespace Actions {
+    export type SetWaterLevel = z.TypeOf<typeof SetWaterLevel>;
+    export const SetWaterLevel = z.object({
+      t: z.literal("SetWaterLevel"),
+      value: z.number(),
+    });
+
+    export type WaterPlant = z.TypeOf<typeof WaterPlant>;
+    export const WaterPlant = z.object({
+      t: z.literal("WaterPlant"),
+      sensorId: z.string(),
+    });
+
+    export const Cancel = z.null();
+
+    export type Actions = z.TypeOf<typeof Actions>;
+    export const Actions = SetWaterLevel;
+
+    export const apply = (
+      _: Actor.ReadonlyActorsMap,
+      robot: Type,
+      action: Actions
+    ) => {
+      robot.data.water = action.value;
+    };
+  }
+
   export namespace Decay {
     export const step = (plant: Sensor.Type, deltaMs: number) => {
       plant.data.water = Math.max(
@@ -222,9 +253,12 @@ export namespace Sensor {
   }
 
   export namespace WaterLevel {
-    export const isUnderwatered = (plant: Type) => plant.data.water < 80;
+    export const withinWateringProximity = (dist: number) =>
+      dist < WaterMinimumProximity;
+
+    export const isUnderwatered = (plant: Type) => plant.data.water < 40;
     export const isNormal = (plant: Type) =>
-      plant.data.water >= 80 && plant.data.water <= 100;
+      plant.data.water >= 40 && plant.data.water <= 100;
     export const isOverwatered = (plant: Type) => plant.data.water > 100;
 
     export const applyWater = (plant: Type) => {
@@ -267,6 +301,6 @@ export namespace Actor {
   export type Actions = z.TypeOf<typeof Actions>;
   export const Actions = z.object({
     id: z.string(),
-    action: Robot.Actions.Actions,
+    action: z.union([Robot.Actions.Actions, Sensor.Actions.Actions]),
   });
 }

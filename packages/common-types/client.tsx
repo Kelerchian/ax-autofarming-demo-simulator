@@ -37,6 +37,16 @@ export type PlantControl = ReturnType<typeof makePlantControl>;
 export const makePlantControl = (server: string, actor: Sensor.Type) => {
   return {
     get: () => getPlant(server, actor.id),
+    setWaterLevel: (value: number) => {
+      const action: Sensor.Actions.SetWaterLevel = {
+        t: "SetWaterLevel",
+        value,
+      };
+      act(server, {
+        id: actor.id,
+        action,
+      });
+    },
   };
 };
 
