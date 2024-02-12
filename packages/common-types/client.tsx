@@ -1,3 +1,4 @@
+import { sleep } from "systemic-ts-utils/async-utils";
 import { Actor, Pos, Robot, Sensor } from "./actors";
 
 const act = (server: string, action: Actor.Actions) =>
@@ -50,26 +51,59 @@ export const makePlantControl = (server: string, actor: Sensor.Type) => {
   };
 };
 
+export const TaskOverridenError = new (class extends Error {
+  constructor(msg?: string) {
+    super(msg);
+    this.name = "TaskOverridenError";
+  }
+})();
+
 export type RobotControl = ReturnType<typeof makeRobotControl>;
 export const makeRobotControl = (server: string, actor: Robot.Type) => {
+  const id = actor.id;
+  const get = () => getRobot(server, actor.id);
   return {
-    get: () => getRobot(server, actor.id),
-    moveToCoord: (pos: Pos.Type["pos"]) =>
-      act(server, {
-        id: actor.id,
-        action: {
-          t: "MoveToCoordinate",
-          to: { pos },
-        },
-      }),
-    waterPlant: (plantId: string) =>
-      act(server, {
-        id: actor.id,
-        action: {
-          t: "WaterPlant",
-          sensorId: plantId,
-        },
-      }),
+    get,
+    moveToCoord: async (pos: Pos.Type["pos"], REFRESH_TIME: number = 1000) => {
+      await act(server, { id, action: { t: "MoveToCoordinate", to: { pos } } });
+
+      while (true) {
+        const actual = await get();
+        if (actual.data.task === null) {
+          if (Pos.equal(pos, actual.pos)) {
+            return;
+          } else {
+            throw TaskOverridenError;
+          }
+        }
+
+        if (
+          actual.data.task?.t !== "MoveToCoordinate" ||
+          !Pos.equal(actual.data.task.to.pos, pos)
+        ) {
+          throw TaskOverridenError;
+        }
+
+        await sleep(Math.max(REFRESH_TIME, 100));
+      }
+    },
+    waterPlant: async (plantId: string, REFRESH_TIME: number = 1000) => {
+      await act(server, { id, action: { t: "WaterPlant", sensorId: plantId } });
+
+      while (true) {
+        const actual = await get();
+        if (actual.data.task === null) {
+          return;
+        }
+        if (
+          actual.data.task?.t !== "WaterPlant" ||
+          actual.data.task.sensor.id !== plantId
+        ) {
+          throw TaskOverridenError;
+        }
+        await sleep(Math.max(REFRESH_TIME, 100));
+      }
+    },
   };
 };
 

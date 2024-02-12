@@ -29,6 +29,9 @@ export namespace Pos {
       })
     );
 
+  export const equal = (a: Type["pos"], b: Type["pos"]) =>
+    a.x === b.x && a.y === b.y;
+
   export const distance = (a: Type["pos"], b: Type["pos"]) => {
     const x = a.x - b.x;
     const y = a.y - b.y;

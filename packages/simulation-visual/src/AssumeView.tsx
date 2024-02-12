@@ -97,6 +97,7 @@ export const AssumeSelect = ({ onDone }: { onDone: () => unknown }) => {
       <div className={cls("flex column nowrap justify-start")}>
         {selections.map((actor) => (
           <Box
+            key={actor.id}
             onMouseEnter={() => hoverAgent.hover(actor)}
             onMouseLeave={() => hoverAgent.unhover()}
             role="button"
@@ -314,6 +315,7 @@ export const AssumeControlRobotWaterPlant = ({
           })
           .map((actor) => (
             <Box
+              key={actor.id}
               onMouseEnter={() => hoverAgent.hover(actor)}
               onMouseLeave={() => hoverAgent.unhover()}
               role="button"
