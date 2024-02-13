@@ -40,10 +40,10 @@ export namespace Simulation {
           while (!isDestroyed()) {
             for (const x of actors.values()) {
               if (x.t === "Robot") {
-                Robot.Actions.Step.step(x);
+                Robot.Step.step(x);
               }
               if (x.t === "Sensor") {
-                Sensor.Decay.step(x, tickWait);
+                Sensor.Step.step(x, tickWait);
               }
             }
 

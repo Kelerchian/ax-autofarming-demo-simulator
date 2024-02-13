@@ -34,7 +34,10 @@ export const getAllActors = (server: string) =>
     .then((res) => res.json())
     .then((json) => Actor.Actors.parse(json));
 
-export type PlantControl = ReturnType<typeof makePlantControl>;
+export type PlantControl = {
+  get: () => Promise<Sensor.Type>;
+  setWaterLevel: (value: number) => Promise<unknown>;
+};
 export const makePlantControl = (server: string, actor: Sensor.Type) => {
   return {
     get: () => getPlant(server, actor.id),
@@ -58,8 +61,19 @@ export const TaskOverridenError = new (class extends Error {
   }
 })();
 
-export type RobotControl = ReturnType<typeof makeRobotControl>;
-export const makeRobotControl = (server: string, actor: Robot.Type) => {
+export type RobotControl = {
+  get: () => Promise<Robot.Type>;
+  moveToCoord: (
+    pos: Pos.Type["pos"],
+    REFRESH_TIME?: number
+  ) => Promise<unknown>;
+  waterPlant: (plantId: string, REFRESH_TIME?: number) => Promise<unknown>;
+};
+
+export const makeRobotControl = (
+  server: string,
+  actor: Robot.Type
+): RobotControl => {
   const id = actor.id;
   const get = () => getRobot(server, actor.id);
   return {
