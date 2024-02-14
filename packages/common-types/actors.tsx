@@ -1,10 +1,10 @@
 import * as z from "zod";
 import { v4 as uuid } from "uuid";
 import { pipe } from "effect";
-import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "./window";
 
 export namespace Pos {
-  const RANDOM_MINIMUM_DEVIATION = 20;
+  const RANDOM_MINIMUM_DEVIATION = 5;
+  const RANDOM_MAXIMUM_DEVIATION = 20;
   export const Type = z.object({
     pos: z.object({
       x: z.number(),
@@ -12,19 +12,27 @@ export namespace Pos {
     }),
   });
   export type Type = z.TypeOf<typeof Type>;
-  export const makeRandom = (inputRadius: number = 0): Type =>
+
+  export const make = (pos: Type["pos"]): Type => ({ pos });
+
+  export const makeRandom = (inputRadius?: number): Type =>
     pipe(
       {
         angle: pipe(
           Math.random() * Math.PI * 2,
           (degreeRad) => Math.round(degreeRad * 1000) / 1000
         ),
-        radius: pipe(inputRadius, (r) => Math.max(r, RANDOM_MINIMUM_DEVIATION)), // normalize
+        radius: pipe(
+          inputRadius !== undefined
+            ? inputRadius
+            : Math.round(Math.random() * RANDOM_MAXIMUM_DEVIATION),
+          (r) => Math.max(r, RANDOM_MINIMUM_DEVIATION)
+        ), // normalize
       },
       ({ angle, radius: radius }): Type => ({
         pos: {
-          x: WINDOW_X_CENTER + radius * Math.sin(angle),
-          y: WINDOW_Y_CENTER + radius * Math.cos(angle),
+          x: radius * Math.sin(angle),
+          y: radius * Math.cos(angle),
         },
       })
     );
@@ -39,14 +47,16 @@ export namespace Pos {
   };
 }
 
-export const Id = z.object({ id: z.string() });
-export type Id = z.TypeOf<typeof Id>;
-export const id = (): Id => ({ id: uuid() });
+export namespace Id {
+  export const Type = z.object({ id: z.string() });
+  export type Type = z.TypeOf<typeof Type>;
+  export const make = (val?: string): Type => ({ id: val || uuid() });
+}
 
 /// Actors
 /// ===================
 
-const ActorBase = z.object({}).and(Pos.Type).and(Id);
+const ActorBase = z.object({}).and(Pos.Type).and(Id.Type);
 
 export namespace Robot {
   export namespace Actions {
@@ -97,51 +107,51 @@ export namespace Robot {
         return null;
       })();
     };
+  }
 
-    export namespace Step {
-      const ROBOT_SPEED = 0.5; // unit / milliseconds
-      const WATERING_DURATION = 3000; // milliseconds
+  export namespace Step {
+    const ROBOT_SPEED = 0.5; // unit / milliseconds
+    const WATERING_DURATION = 3000; // milliseconds
 
-      export const step = (robot: Type) => {
-        const task = robot.data.task;
-        if (task?.t === "MoveToCoordinate") {
-          return moveToCoord(robot, task);
-        }
-        if (task?.t === "WaterPlant") {
-          return waterPlant(robot, task);
-        }
-      };
+    export const step = (robot: Type) => {
+      const task = robot.data.task;
+      if (task?.t === "MoveToCoordinate") {
+        return moveToCoord(robot, task);
+      }
+      if (task?.t === "WaterPlant") {
+        return waterPlant(robot, task);
+      }
+    };
 
-      export const moveToCoord = (robot: Type, task: Task.MoveToCoordinate) => {
-        const { from, to, start } = task;
-        const deltaX = to.pos.x - from.pos.x;
-        const deltaY = to.pos.y - from.pos.y;
-        const totalDist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        const currentDist = (Date.now() - start) * ROBOT_SPEED;
+    const moveToCoord = (robot: Type, task: Task.MoveToCoordinate) => {
+      const { from, to, start } = task;
+      const deltaX = to.pos.x - from.pos.x;
+      const deltaY = to.pos.y - from.pos.y;
+      const totalDist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      const currentDist = (Date.now() - start) * ROBOT_SPEED;
 
-        // hasn't reached destination
-        if (currentDist < totalDist) {
-          robot.pos = pipe(Math.atan2(deltaY, deltaX), (angle) => ({
-            x: from.pos.x + currentDist * Math.cos(angle),
-            y: from.pos.y + currentDist * Math.sin(angle),
-          }));
-          return;
-        }
+      // hasn't reached destination
+      if (currentDist < totalDist) {
+        robot.pos = pipe(Math.atan2(deltaY, deltaX), (angle) => ({
+          x: from.pos.x + currentDist * Math.cos(angle),
+          y: from.pos.y + currentDist * Math.sin(angle),
+        }));
+        return;
+      }
 
-        // robot reached destination
-        robot.pos = { ...to.pos };
-        robot.data.task = null;
-      };
+      // robot reached destination
+      robot.pos = { ...to.pos };
+      robot.data.task = null;
+    };
 
-      export const waterPlant = (robot: Type, task: Task.WaterPlant) => {
-        const sensor = task.sensor;
-        if (Date.now() < task.start + WATERING_DURATION) {
-          return;
-        }
-        Sensor.WaterLevel.applyWater(sensor);
-        robot.data.task = null;
-      };
-    }
+    const waterPlant = (robot: Type, task: Task.WaterPlant) => {
+      const sensor = task.sensor;
+      if (Date.now() < task.start + WATERING_DURATION) {
+        return;
+      }
+      Sensor.WaterLevel.applyWater(sensor);
+      robot.data.task = null;
+    };
   }
 
   export namespace Task {
@@ -176,12 +186,12 @@ export namespace Robot {
     })
   );
 
-  export const make = ({ pos }: { pos: Pos.Type }): Type => ({
+  export const make = ({ pos, id }: { pos: Pos.Type; id?: string }): Type => ({
     t: "Robot",
     data: {
       task: null,
     },
-    ...id(),
+    ...Id.make(id),
     ...pos,
   });
 }
@@ -209,13 +219,15 @@ export namespace Sensor {
   export const make = ({
     pos,
     decay,
+    id,
   }: {
     pos: Pos.Type;
     decay?: number;
+    id?: string;
   }): Type => ({
     t: "Sensor",
-    ...id(),
     ...pos,
+    ...Id.make(id),
     data: { water: 100, decay: Math.max(0.002 || decay, 0.002) },
   });
 
@@ -246,7 +258,7 @@ export namespace Sensor {
     };
   }
 
-  export namespace Decay {
+  export namespace Step {
     export const step = (plant: Sensor.Type, deltaMs: number) => {
       plant.data.water = Math.max(
         plant.data.water - deltaMs * plant.data.decay,
@@ -284,9 +296,9 @@ export namespace Sensor {
 export namespace WaterPump {
   export const Type = ActorBase.and(z.object({ t: z.literal("WaterPump") }));
   export type Type = z.TypeOf<typeof Type>;
-  export const make = ({ pos }: { pos: Pos.Type }): Type => ({
+  export const make = ({ pos, id }: { pos: Pos.Type; id?: string }): Type => ({
     t: "WaterPump",
-    ...id(),
+    ...Id.make(id),
     ...pos,
   });
 }
