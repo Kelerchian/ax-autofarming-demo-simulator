@@ -3,6 +3,7 @@ import { SimulatorView } from "./Simulator.tsx";
 import "./index.scss";
 import { Simulator } from "./worker/sim.tsx";
 import { Pos, Robot, Sensor } from "../../common-types/actors.tsx";
+import * as RobotCode from "./workshop/protocol/Robot.ts";
 
 const simulator = Simulator();
 simulator.api.init();
@@ -35,5 +36,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     x: (index - 1) * 200,
   }))
   .map(({ id, x }) => {
-    simulator.api.add(Robot.make({ id, pos: Pos.make({ x, y: +200 }) }));
+    RobotCode.main(
+      simulator.api.add(Robot.make({ id, pos: Pos.make({ x, y: +200 }) }))
+    );
   });

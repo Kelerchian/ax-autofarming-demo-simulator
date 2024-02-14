@@ -3,6 +3,7 @@ import { MachineEvent, SwarmProtocol } from "@actyx/machine-runner";
 
 export type PlantRequest = { pos: { x: number, y: number }, requestId: string }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace Events {
     export const PlantRequestedWater = MachineEvent
         .design("Created")

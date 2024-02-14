@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { MachineEvent, createMachineRunner } from "@actyx/machine-runner";
 import { Actyx, AqlEventMessage } from "@actyx/sdk";
 import { Events, manifest, protocol, PlantRequest } from "./protocol";
 import { sleep } from "systemic-ts-utils/async-utils";
+import { RobotControlHandle } from "../../worker/sim";
 
 const machine = protocol.makeMachine("robot");
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 namespace States {
     export const Initial = machine
         .designEmpty("Initial")
@@ -95,6 +98,7 @@ States.FinishedWateringPlant.react(
 )
 
 async function loop(sdk: Actyx) {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
         const unwateredPlant = await sdk.queryAql(`
             PRAGMA features := interpolation subQuery
@@ -152,8 +156,12 @@ async function loop(sdk: Actyx) {
     }
 }
 
-export async function main() {
+export async function main(robotControl: RobotControlHandle) {
     const sdk = await Actyx.of(manifest);
+
+    // usage of robotControl can be seen in the type hints
+    // @example:
+    // robotControl.control.moveToCoord(...)
     try {
         await loop(sdk)
     } finally {
@@ -161,4 +169,3 @@ export async function main() {
     }
 }
 
-main();

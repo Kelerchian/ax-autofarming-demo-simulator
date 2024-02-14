@@ -43,12 +43,12 @@ export const Simulator = () =>
       const legacyActorsMap = (): Actor.ReadonlyActorsMap =>
         data.legacyActorMap;
 
-      const add = (actor: Actor.Type) => {
+      const add = <T extends Actor.Type>(actor: T): ControlHandleOf<T> => {
         const sim = ActorSim(() => data.legacyActorMap, actor);
         data.sims.set(actor.id, sim);
         data.legacyActorMap.set(actor.id, actor);
         channels.change.emit();
-        return actor;
+        return sim.api.controlHandle() as ControlHandleOf<T>;
       };
 
       const actors = (): ActorSim[] => Array.from(data.sims.values());
@@ -125,6 +125,13 @@ export type ControlHandle =
   | SensorControlHandle
   | RobotControlHandle
   | WaterPumpControlHandle;
+
+export type ControlHandleOf<T extends Actor.Type> = T extends Robot.Type
+  ? RobotControlHandle
+  : T extends Sensor.Type
+  ? SensorControlHandle
+  : WaterPumpControlHandle;
+
 export type RobotControlHandle = {
   actor: Robot.Type;
   control: RobotControl;
