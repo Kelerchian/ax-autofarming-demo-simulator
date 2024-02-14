@@ -2,7 +2,7 @@ import ReactDOM from "react-dom/client";
 import { SimulatorView } from "./Simulator.tsx";
 import "./index.scss";
 import { Simulator } from "./worker/sim.tsx";
-import { Pos, Robot, Sensor } from "../../common-types/actors.tsx";
+import { Pos, Robot, Sensor } from "./common/actors.tsx";
 import * as RobotCode from "./workshop/protocol/Robot.ts";
 
 const simulator = Simulator();

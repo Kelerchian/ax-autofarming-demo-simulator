@@ -5,7 +5,7 @@ import { ActorLogo } from "../actor/ActorView";
 import { useEffect, useMemo, useState } from "react";
 import { SelectorCtx } from "../../worker/selector";
 import { pipe } from "effect";
-import { Pos, Robot, Sensor } from "../../../../common-types/actors";
+import { Pos, Robot, Sensor } from "../../common/actors";
 import {
   ControlHandle,
   RobotControlHandle,
@@ -17,7 +17,7 @@ import { Box } from "../common";
 import {
   WINDOW_X_CENTER,
   WINDOW_Y_CENTER,
-} from "../../../../common-types/window";
+} from "../../common/window";
 
 export const AssumeView = React.memo(() => {
   const [selecting, setSelecting] = useState(false);

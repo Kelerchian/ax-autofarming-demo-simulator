@@ -2,7 +2,7 @@ import { Vaettir } from "vaettir";
 import { Simulator } from "./sim";
 import { VaettirReact } from "vaettir-react";
 import { Obs } from "systemic-ts-utils/obs";
-import { Actor } from "../../../common-types/actors";
+import { Actor } from "../common/actors";
 import { pipe } from "effect";
 
 export const SelectorCtx =

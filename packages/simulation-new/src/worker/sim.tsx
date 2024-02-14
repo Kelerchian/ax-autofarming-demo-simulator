@@ -4,7 +4,7 @@ import {
   Robot,
   Sensor,
   WaterPump,
-} from "../../../common-types/actors";
+} from "../common/actors";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
 import { sleep } from "systemic-ts-utils/async-utils";
@@ -12,7 +12,7 @@ import {
   PlantControl,
   RobotControl,
   TaskOverridenError,
-} from "../../../common-types/client";
+} from "../common/client";
 
 export const GLOBAL_DELTA = Math.round(1000 / 30);
 

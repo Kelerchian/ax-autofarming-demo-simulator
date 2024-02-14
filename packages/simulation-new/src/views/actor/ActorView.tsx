@@ -1,7 +1,7 @@
 import { ActorSim } from "../../worker/sim";
 import cls from "classnames";
 import * as styles from "./ActorView.module.scss";
-import { Actor, Sensor } from "../../../../common-types/actors";
+import { Actor, Sensor } from "../../common/actors";
 import { SelectorCtx } from "../../worker/selector";
 import React, { useEffect, useMemo } from "react";
 import { ActorAssumerCtx } from "../../worker/assume";
@@ -10,7 +10,7 @@ import {
   WINDOW_X_SIZE,
   WINDOW_Y_CENTER,
   WINDOW_Y_SIZE,
-} from "../../../../common-types/window";
+} from "../../common/window";
 
 export const VisualizerFrame = (
   props: React.DetailedHTMLProps<

@@ -3,7 +3,7 @@ import { sleep } from "systemic-ts-utils/async-utils";
 import { Actyx } from "@actyx/sdk";
 import { manifest } from "../protocol/protocol";
 import { randomUUID } from "crypto";
-import { Sensor as WaterSensor } from "../../../../common-types/actors";
+import { Sensor as WaterSensor } from "../../common/actors";
 import * as z from "zod";
 
 const MINIMUM_WATER_LEVEL = 50;

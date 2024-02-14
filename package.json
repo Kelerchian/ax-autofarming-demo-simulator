@@ -1,7 +1,5 @@
 {
   "workspaces": [
-    "packages/simulation-server",
-    "packages/simulation-visual",
     "packages/simulation-new"
   ],
   "scripts": {
