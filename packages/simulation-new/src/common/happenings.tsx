@@ -4,19 +4,24 @@
  */
 
 /* eslint-disable @typescript-eslint/no-namespace */
-import { Actyx, Tags } from "@actyx/sdk";
+import { Actyx, Tags, Metadata } from "@actyx/sdk";
 import { Id, Pos, Robot, Sensor } from "./actors";
 import * as z from "zod";
 
+const World = Tags("World");
+export const WorldCreate = World.and(Tags("World:Create"));
+export const WorldUpdate = World.and(Tags("World:Update"));
+
 export namespace PlantHappenings {
   // base tags for common subscriptions
-  const TagPlant = Tags("Plant");
-  const TagPlantWithId = (id: string) => TagPlant.and(Tags(`Plant:${id}`));
+  export const TagPlant = Tags("Plant");
+  export const TagPlantWithId = (id: string) =>
+    TagPlant.and(Tags(`Plant:${id}`));
 
   // specific event-based tags
-  const TagPlantCreated = Tags("PlantCreated");
-  const TagPlantWatered = Tags("PlantWatered");
-  const TagPlantWaterLevelUpdate = Tags("TagPlantWaterLevel");
+  export const TagPlantCreated = Tags("PlantCreated");
+  export const TagPlantWatered = Tags("PlantWatered");
+  export const TagPlantWaterLevelUpdate = Tags("TagPlantWaterLevel");
 
   // PlantWatered event
   export namespace WaterLevel {
@@ -31,10 +36,16 @@ export namespace PlantHappenings {
   }
 
   // emissions
-  export const emitPlantCreated = (sdk: Actyx, sensor: Sensor.Type) =>
-    sdk.publish(TagPlantWithId(sensor.id).and(TagPlantCreated).apply(sensor));
+  export const publishPlantCreated = (sdk: Actyx, sensor: Sensor.Type) => {
+    return sdk.publish(
+      WorldCreate.and(TagPlant)
+        .and(TagPlantWithId(sensor.id))
+        .and(TagPlantCreated)
+        .apply(sensor)
+    );
+  };
 
-  export const emitWaterLevelUpdate = (
+  export const publishWaterLevelUpdate = (
     sdk: Actyx,
     waterLevelUpdate: WaterLevel.Type
   ) =>
@@ -51,22 +62,19 @@ export namespace PlantHappenings {
 }
 
 export namespace RobotHappenings {
-  const World = Tags("World");
-  export const WorldCreation = World.and(Tags("World:Create"));
-  export const WorldUpdate = World.and(Tags("World:Update"));
+  export const publishCreateRobotEvent = (sdk: Actyx, robot: Robot.Type) => {
+    const taggedEvent = WorldCreate.and(TagRobot)
+      .and(TagRobotCreated)
+      .apply(Robot.make({ pos: robot.pos, id: robot.id }));
 
-  export namespace CreateEvent {
-    export const Type = Id.Type.and(
-      z.object({ type: z.enum(["Robot", "Plant"]), pos: Pos.Type })
-    );
-    export type Type = z.TypeOf<typeof Type>;
-  }
+    return sdk.publish(taggedEvent);
+  };
 
   export namespace WateredEvent {
     export const Type = Id.Type.and(
       // TODO: double check this
       z.object({
-        type: z.enum(["Robot", "Plant"]),
+        id: z.string(),
         water: z.number(),
       })
     );
@@ -85,7 +93,7 @@ export namespace RobotHappenings {
   const TagRobotWithId = (id: string) => TagRobot.and(Tags(`Robot:${id}`));
 
   // specific event-based tags
-  const TagRobotCreated = Tags("RobotCreated");
+  export const TagRobotCreated = Tags("RobotCreated");
   const TagRobotPosUpdate = Tags("RobotPosUpdate");
 
   // PlantWatered event
@@ -95,7 +103,7 @@ export namespace RobotHappenings {
   }
 
   // emissions
-  export const emitPlantCreated = (sdk: Actyx, robot: Robot.Type) =>
+  export const emitRobotCreated = (sdk: Actyx, robot: Robot.Type) =>
     sdk.publish(TagRobotWithId(robot.id).and(TagRobotCreated).apply(robot));
 
   export const emitPosUpdate = (sdk: Actyx, posUpdate: PosUpdate.Type) =>

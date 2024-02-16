@@ -1,11 +1,4 @@
-import {
-  Actor,
-  Id,
-  Pos,
-  Robot,
-  Sensor as Plant,
-  WaterPump,
-} from "../common/actors";
+import { Actor, Id, Pos, Robot, Sensor, WaterPump } from "../common/actors";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
 import { sleep } from "systemic-ts-utils/async-utils";
@@ -14,9 +7,12 @@ import {
   RobotControl,
   TaskOverridenError,
 } from "../common/client";
-import { Actyx, ActyxEvent, Tags } from "@actyx/sdk";
-import { z } from "zod";
-import { RobotHappenings } from "../common/happenings";
+import { Actyx } from "@actyx/sdk";
+import {
+  RobotHappenings,
+  WorldCreate,
+  WorldUpdate,
+} from "../common/happenings";
 
 export const GLOBAL_DELTA = Math.round(1000 / 30);
 
@@ -25,6 +21,7 @@ export const SimulatorCtx = VaettirReact.Context.make<Simulator>();
 export type Simulator = ReturnType<typeof Simulator>;
 export const Simulator = (actyx: Actyx) =>
   Vaettir.build()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     .api(({ isDestroyed, channels }) => {
       const data = {
         sims: new Map<string, ActorSim>(),
@@ -35,44 +32,24 @@ export const Simulator = (actyx: Actyx) =>
       const init = () =>
         data.lock.use(async () => {
           // Returns cancel handle
-          actyx.subscribe(
-            // TODO: store the id in a cookie so we're not spawning multiple sensors on refresh
-            { query: RobotHappenings.WorldCreation },
-            (actyxEvent) => {
-              const entity = RobotHappenings.CreateEvent.Type.safeParse(
-                actyxEvent.payload
-              );
-              if (entity.success) {
-                const actor = (() => {
-                  if (entity.data.type === "Robot") {
-                    return Robot.make(entity.data);
-                  } else if (entity.data.type === "Plant") {
-                    return Plant.make(entity.data);
-                  }
-                })();
-                if (!actor) {
-                  console.log("unknown entity:", entity.data);
-                  return;
-                }
-                const sim = ActorSim(() => data.legacyActorMap, actor);
-                data.sims.set(entity.data.id, sim);
-                channels.change.emit();
-              }
+          actyx.subscribe({ query: WorldCreate }, (actyxEvent) => {
+            const entity = Actor.Type.safeParse(actyxEvent.payload);
+            if (entity.success) {
+              const sim = ActorSim(() => data.legacyActorMap, entity.data);
+              data.sims.set(entity.data.id, sim);
+              channels.change.emit();
             }
-          );
+          });
 
           // Returns cancel handle
-          actyx.subscribe(
-            { query: RobotHappenings.WorldUpdate },
-            (actyxEvent) => {
-              const idPayload = Id.Type.safeParse(actyxEvent.payload);
-              if (idPayload.success) {
-                data.sims.get(idPayload.data.id)?.api.feed(actyxEvent.payload);
-                // Just emit the change on the actor
-                // channels.change.emit();
-              }
+          actyx.subscribe({ query: WorldUpdate }, (actyxEvent) => {
+            const idPayload = Id.Type.safeParse(actyxEvent.payload);
+            if (idPayload.success) {
+              data.sims.get(idPayload.data.id)?.api.feed(actyxEvent.payload);
+              // Just emit the change on the actor
+              // channels.change.emit();
             }
-          );
+          });
         });
 
       // const add = <T extends Actor.Type>(actor: T): ControlHandleOf<T> => {
@@ -111,7 +88,7 @@ export const ActorSim = (
             const wateredEvent =
               RobotHappenings.WateredEvent.Type.safeParse(eventPayload);
             if (wateredEvent.success) {
-              actor.data.water = wateredEvent.data.water;
+              actor.water = wateredEvent.data.water;
               channels.change.emit();
             }
           };
@@ -172,7 +149,7 @@ export type ControlHandle =
 
 export type ControlHandleOf<T extends Actor.Type> = T extends Robot.Type
   ? RobotControlHandle
-  : T extends Plant.Type
+  : T extends Sensor.Type
   ? SensorControlHandle
   : WaterPumpControlHandle;
 
@@ -183,7 +160,7 @@ export type RobotControlHandle = {
 };
 export type SensorControlHandle = {
   type: "SensorControlHandle";
-  actor: Plant.Type;
+  actor: Sensor.Type;
   control: PlantControl;
 };
 export type WaterPumpControlHandle = {
@@ -192,10 +169,10 @@ export type WaterPumpControlHandle = {
   control: null;
 };
 
-const makePlantControl = (plant: Plant.Type): PlantControl => ({
+const makePlantControl = (plant: Sensor.Type): PlantControl => ({
   get: async () => plant,
   setWaterLevel: async (x) => {
-    plant.data.water = x;
+    plant.water = x;
   },
 });
 

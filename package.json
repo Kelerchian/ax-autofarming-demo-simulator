@@ -3,7 +3,7 @@
     "packages/simulation-new"
   ],
   "scripts": {
-    "dev:ax": "ax run --working-dir ./ax-data",
+    "dev:ax": "ax run --working-dir ./ax-data --bind-api 0.0.0.0:4454",
     "dev:vis": "cd packages/simulation-new && npm run dev",
     "dev": "concurrently npm:dev:ax npm:dev:vis",
     "clean:ax": "rimraf ax-data"

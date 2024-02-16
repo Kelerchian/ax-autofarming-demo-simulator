@@ -2,13 +2,13 @@ import ReactDOM from "react-dom/client";
 import { SimulatorView } from "./Simulator.tsx";
 import "./index.scss";
 import { Simulator } from "./worker/sim.tsx";
-import { Actyx } from "@actyx/sdk";
-import { runActyxSubscription } from "./worker/actyx.ts";
+import { Actyx, AqlEventMessage } from "@actyx/sdk";
+import { PlantHappenings, RobotHappenings } from "./common/happenings.tsx";
+import { v4 as uuid } from "uuid";
+import { Robot, Sensor } from "./common/actors.tsx";
+import { sleep } from "systemic-ts-utils/async-utils";
 
-const simulator = Simulator();
-simulator.api.init();
-
-const sdk = await Actyx.of(
+const actyx = await Actyx.of(
   {
     appId: "com.example.workshop",
     displayName: "Workshop Demo",
@@ -20,7 +20,103 @@ const sdk = await Actyx.of(
   }
 );
 
-runActyxSubscription(sdk, simulator);
+async function setupPlant() {
+  let plantId = localStorage.getItem("plantId");
+  if (!plantId) {
+    plantId = uuid();
+    localStorage.setItem("plantId", plantId);
+    await PlantHappenings.publishPlantCreated(
+      actyx,
+      Sensor.make({
+        id: plantId,
+        pos: { x: 0, y: 0 },
+      })
+    );
+  }
+
+  const createdPlants = await actyx.queryAql({
+    query: `FROM ${PlantHappenings.TagPlantCreated}`,
+  });
+  const createdPlant = createdPlants
+    .filter((e): e is AqlEventMessage => e.type === "event")
+    .map((msg) => {
+      const parsed = Sensor.Type.safeParse(msg.payload);
+      return parsed.success ? parsed.data : undefined;
+    })
+    .filter((msg) => msg && msg.id === plantId)
+    .at(0);
+
+  if (!createdPlant) {
+    localStorage.removeItem("plantId");
+    throw new Error(
+      "did not find a uuid for the current plant, please refresh"
+    );
+  }
+
+  runWaterLoop(createdPlant);
+}
+
+async function runWaterLoop(plant: Sensor.Type) {
+  actyx.subscribe(
+    // TODO: review event payload / tag
+    `FROM ${RobotHappenings.WateredEvent}`, //  FILTER _.id = ${plant.id}
+    (event) => {
+      const parsed = RobotHappenings.WateredEvent.Type.safeParse(event.payload);
+      if (parsed.success && parsed.data.id === plant.id) {
+        // TODO: this needs to reflect on UI
+        Sensor.WaterLevel.applyWater(plant);
+      }
+    }
+  );
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    await sleep(100);
+    plant.water = plant.water - 1;
+    await PlantHappenings.publishWaterLevelUpdate(actyx, {
+      id: plant.id,
+      water: plant.water,
+    });
+  }
+}
+
+async function setupRobot() {
+  let robotId = localStorage.getItem("robotId");
+  if (!robotId) {
+    robotId = uuid();
+    localStorage.setItem("robotId", robotId);
+    await RobotHappenings.publishCreateRobotEvent(
+      actyx,
+      Robot.make({
+        id: robotId,
+        pos: { x: 0, y: 0 },
+      })
+    );
+  }
+
+  const createdRobots = await actyx.queryAql({
+    query: `FROM ${RobotHappenings.TagRobotCreated}`,
+  });
+  const createdRobot = createdRobots
+    .filter((e): e is AqlEventMessage => e.type === "event")
+    .filter((msg) => {
+      const parsed = RobotHappenings.CreateEvent.Robot.safeParse(msg.payload);
+      if (parsed.success && parsed.data.id === robotId) {
+        return true;
+      }
+      return false;
+    })
+    .at(0);
+
+  if (!createdRobot) {
+    localStorage.removeItem("robotId");
+    throw new Error(
+      "did not find a uuid for the current robot, please refresh"
+    );
+  }
+}
+
+const simulator = Simulator();
+simulator.api.init();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <SimulatorView simulator={simulator} />
