@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Actor, Id, Pos, Robot, Sensor, WaterPump } from "../common/actors";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
-import { sleep } from "systemic-ts-utils/async-utils";
 import {
   PlantControl,
   RobotControl,
@@ -12,6 +12,7 @@ import {
   RobotHappenings,
   WorldCreate,
   WorldUpdate,
+  WorldUpdatePayload,
 } from "../common/happenings";
 
 export const GLOBAL_DELTA = Math.round(1000 / 30);
@@ -43,12 +44,9 @@ export const Simulator = (actyx: Actyx) =>
 
           // Returns cancel handle
           actyx.subscribe({ query: WorldUpdate }, (actyxEvent) => {
-            const idPayload = Id.Type.safeParse(actyxEvent.payload);
-            if (idPayload.success) {
-              data.sims.get(idPayload.data.id)?.api.feed(actyxEvent.payload);
-              // Just emit the change on the actor
-              // channels.change.emit();
-            }
+            const idPayload = WorldUpdatePayload.safeParse(actyxEvent.payload);
+            if (!idPayload.success) return;
+            data.sims.get(idPayload.data.id)?.api.feed(idPayload.data);
           });
         });
 
@@ -65,7 +63,7 @@ export const Simulator = (actyx: Actyx) =>
       const actors = (): ActorSim[] => Array.from(data.sims.values());
 
       return {
-        actorsMap,
+        simsMap: actorsMap,
         actors,
         init,
       };
@@ -78,13 +76,10 @@ export const ActorSim = (
   actor: Actor.Type
 ) =>
   Vaettir.build()
-    .api(({ channels }) => {
-      const data = { actor };
-
-      const feed: (eventPayload: unknown) => unknown = (() => {
-        console.log("step");
+    .api(({ channels, onDestroy }) => {
+      const feed: (eventPayload: WorldUpdatePayload) => unknown = (() => {
         if (actor.t === "Sensor") {
-          return (eventPayload: unknown) => {
+          return (eventPayload: WorldUpdatePayload) => {
             const wateredEvent =
               RobotHappenings.WateredEvent.Type.safeParse(eventPayload);
             if (wateredEvent.success) {
@@ -94,9 +89,9 @@ export const ActorSim = (
           };
         }
         if (actor.t === "Robot") {
-          return (eventPayload: unknown) => {
+          return (eventPayload: WorldUpdatePayload) => {
             const positionEvent =
-              RobotHappenings.PositionEvent.Type.safeParse(eventPayload);
+              RobotHappenings.PosUpdate.Type.safeParse(eventPayload);
             if (positionEvent.success) {
               actor.pos = positionEvent.data.pos;
               channels.change.emit();
@@ -110,7 +105,6 @@ export const ActorSim = (
 
       // TODO: keep for the UI
       const controlHandle = (): ControlHandle => {
-        const actor = data.actor;
         if (actor.t === "Sensor") {
           return {
             actor,
@@ -134,9 +128,9 @@ export const ActorSim = (
 
       return Object.freeze({
         feed: feed,
-        id: data.actor.id,
-        t: data.actor.t,
-        actor: () => data.actor as Readonly<Actor.Type>,
+        id: actor.id,
+        t: actor.t,
+        actor: () => actor as Readonly<Actor.Type>,
         controlHandle,
       });
     })
@@ -182,46 +176,9 @@ const makeRobotControl = (
 ): RobotControl => ({
   get: async () => robot,
   moveToCoord: async (pos, REFRESH_TIME) => {
-    Robot.Actions.apply(actors(), robot, {
-      t: "MoveToCoordinate",
-      to: { pos },
-    });
-    const currentTask = robot.data.task;
-    if (!currentTask) return;
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (robot.data.task === null && Pos.equal(robot.pos, pos)) {
-        if (Pos.equal(robot.pos, pos)) {
-          return;
-        } else {
-          throw TaskOverridenError;
-        }
-      }
-
-      if (robot.data.task !== null && robot.data.task !== currentTask) {
-        throw TaskOverridenError;
-      }
-
-      await sleep(Math.max(REFRESH_TIME || GLOBAL_DELTA, GLOBAL_DELTA));
-    }
+    return;
   },
   waterPlant: async (plantId: string, REFRESH_TIME?: number) => {
-    Robot.Actions.apply(actors(), robot, {
-      t: "WaterPlant",
-      sensorId: plantId,
-    });
-    const currentTask = robot.data.task;
-    if (!currentTask) return;
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (robot.data.task === null) return;
-
-      if (robot.data.task !== null && robot.data.task !== currentTask) {
-        throw TaskOverridenError;
-      }
-      await sleep(Math.max(REFRESH_TIME || GLOBAL_DELTA, GLOBAL_DELTA));
-    }
+    return;
   },
 });

@@ -2,7 +2,6 @@
 import * as z from "zod";
 import { v4 as uuid } from "uuid";
 import { pipe } from "effect";
-import { Actyx } from "@actyx/sdk";
 
 export namespace Pos {
   const RANDOM_MINIMUM_DEVIATION = 5;
@@ -79,79 +78,72 @@ export namespace Robot {
     export type Actions = z.TypeOf<typeof Actions>;
     export const Actions = z.union([MoveToCoordinate, WaterPlant]);
 
-    export const apply = (
-      actors: Actor.ReadonlyActorsMap,
-      robot: Type,
-      action: Actions
-    ) => {
-      robot.data.task = (() => {
-        if (action.t === "MoveToCoordinate") {
-          return {
-            t: "MoveToCoordinate",
-            start: Date.now(),
-            from: { pos: robot.pos },
-            to: action.to,
-          };
-        }
-        if (action.t === "WaterPlant") {
-          const sensor = actors.get(action.sensorId);
-          if (sensor?.t === "Sensor") {
-            const distance = Pos.distance(robot.pos, sensor.pos);
-            if (Sensor.WaterLevel.withinWateringProximity(distance)) {
-              return {
-                t: "WaterPlant",
-                start: Date.now(),
-                sensor,
-              };
-            }
-          }
-        }
-        return null;
-      })();
-    };
+    // export const apply = (
+    //   actors: Actor.ReadonlyActorsMap,
+    //   robot: Type,
+    //   action: Actions
+    // ) => {
+    //   robot.task = (() => {
+    //     if (action.t === "MoveToCoordinate") {
+    //       return {
+    //         t: "MoveToCoordinate",
+    //         start: Date.now(),
+    //         from: { pos: robot.pos },
+    //         to: action.to,
+    //       };
+    //     }
+    //     if (action.t === "WaterPlant") {
+    //       const sensor = actors.get(action.sensorId);
+    //       if (sensor?.t === "Sensor") {
+    //         const distance = Pos.distance(robot.pos, sensor.pos);
+    //         if (Sensor.WaterLevel.withinWateringProximity(distance)) {
+    //           return {
+    //             t: "WaterPlant",
+    //             start: Date.now(),
+    //             sensor,
+    //           };
+    //         }
+    //       }
+    //     }
+    //     return null;
+    //   })();
+    // };
   }
 
   export namespace Step {
-    const ROBOT_SPEED = 0.5; // unit / milliseconds
-    const WATERING_DURATION = 3000; // milliseconds
-
-    export const step = (robot: Type) => {
-      // const task = robot.data.task;
-      // if (task?.t === "MoveToCoordinate") {
-      //   return moveToCoord(robot, task);
-      // }
-      // if (task?.t === "WaterPlant") {
-      //   return waterPlant(robot, task);
-      // }
-    };
-
-    const moveToCoord = (robot: Type, task: Task.MoveToCoordinate) => {
-      const { from, to, start } = task;
-      const deltaX = to.pos.x - from.pos.x;
-      const deltaY = to.pos.y - from.pos.y;
-      const totalDist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      const currentDist = (Date.now() - start) * ROBOT_SPEED;
-
-      // hasn't reached destination
-      if (currentDist < totalDist) {
-        robot.pos = pipe(Math.atan2(deltaY, deltaX), (angle) => ({
-          x: from.pos.x + currentDist * Math.cos(angle),
-          y: from.pos.y + currentDist * Math.sin(angle),
-        }));
-        return;
-      }
-
-      // robot reached destination
-      robot.pos = { ...to.pos };
-    };
-
-    const waterPlant = (robot: Type, task: Task.WaterPlant) => {
-      const sensor = task.sensor;
-      if (Date.now() < task.start + WATERING_DURATION) {
-        return;
-      }
-      Sensor.WaterLevel.applyWater(sensor);
-    };
+    // export const step = (robot: Type) => {
+    //   // const task = robot.data.task;
+    //   // if (task?.t === "MoveToCoordinate") {
+    //   //   return moveToCoord(robot, task);
+    //   // }
+    //   // if (task?.t === "WaterPlant") {
+    //   //   return waterPlant(robot, task);
+    //   // }
+    // };
+    // const moveToCoord = (robot: Type, task: Task.MoveToCoordinate) => {
+    //   const { from, to, start } = task;
+    //   const deltaX = to.pos.x - from.pos.x;
+    //   const deltaY = to.pos.y - from.pos.y;
+    //   const totalDist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    //   const currentDist = (Date.now() - start) * ROBOT_SPEED;
+    //   // hasn't reached destination
+    //   if (currentDist < totalDist) {
+    //     robot.pos = pipe(Math.atan2(deltaY, deltaX), (angle) => ({
+    //       x: from.pos.x + currentDist * Math.cos(angle),
+    //       y: from.pos.y + currentDist * Math.sin(angle),
+    //     }));
+    //     return;
+    //   }
+    //   // robot reached destination
+    //   robot.pos = { ...to.pos };
+    // };
+    // const waterPlant = (robot: Type, task: Task.WaterPlant) => {
+    //   const sensor = task.sensor;
+    //   if (Date.now() < task.start + WATERING_DURATION) {
+    //     return;
+    //   }
+    //   Sensor.WaterLevel.applyWater(sensor);
+    // };
   }
 
   export namespace Task {
@@ -242,11 +234,11 @@ export namespace Sensor {
     };
   }
 
-  export namespace Step {
-    export const step = (plant: Sensor.Type, deltaMs: number) => {
-      plant.water = Math.max(plant.water - deltaMs * plant.decay, 0);
-    };
-  }
+  // export namespace Step {
+  //   export const step = (plant: Sensor.Type, deltaMs: number) => {
+  //     plant.water = Math.max(plant.water - deltaMs * plant.decay, 0);
+  //   };
+  // }
 
   export namespace WaterLevel {
     export const withinWateringProximity = (dist: number) =>

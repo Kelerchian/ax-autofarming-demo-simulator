@@ -94,9 +94,6 @@ export const ActorLogo = ({ actor }: { actor: Actor.Type }) => {
       return "🥀";
     }
   }
-  if (actor.t === "WaterPump") {
-    return "🚰";
-  }
 };
 
 const actorTip = (actor: Actor.Type) =>
@@ -106,22 +103,14 @@ const actorTip = (actor: Actor.Type) =>
     `coord: ${Math.round(actor.pos.x * 100) / 100}, ${
       Math.round(actor.pos.y * 100) / 100
     }`,
-    robotTaskTip(actor),
     plantWaterLevelTip(actor),
   ]
     .filter((x) => !!x)
     .join("\n");
 
-const robotTaskTip = (actor: Actor.Type) => {
-  if (actor?.t !== "Robot" || actor.data.task == null) {
-    return undefined;
-  }
-  return `task: ${actor.data.task.t}`;
-};
-
 const plantWaterLevelTip = (actor: Actor.Type) => {
   if (actor?.t !== "Sensor") {
     return undefined;
   }
-  return `water: ${Math.round(actor.data.water)}%`;
+  return `water: ${Math.round(actor.water)}%`;
 };
