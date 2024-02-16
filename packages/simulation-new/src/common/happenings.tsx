@@ -51,6 +51,35 @@ export namespace PlantHappenings {
 }
 
 export namespace RobotHappenings {
+  const World = Tags("World");
+  export const WorldCreation = World.and(Tags("World:Create"));
+  export const WorldUpdate = World.and(Tags("World:Update"));
+
+  export namespace CreateEvent {
+    export const Type = Id.Type.and(
+      z.object({ type: z.enum(["Robot", "Plant"]), pos: Pos.Type })
+    );
+    export type Type = z.TypeOf<typeof Type>;
+  }
+
+  export namespace WateredEvent {
+    export const Type = Id.Type.and(
+      // TODO: double check this
+      z.object({
+        type: z.enum(["Robot", "Plant"]),
+        water: z.number(),
+      })
+    );
+    export type Type = z.TypeOf<typeof Type>;
+  }
+
+  export namespace PositionEvent {
+    export const Type = Id.Type.and(Pos.Type).and(
+      z.object({ type: z.enum(["Robot", "Plant"]), pos: Pos.Type })
+    );
+    export type Type = z.TypeOf<typeof Type>;
+  }
+
   // base tags for common subscriptions
   const TagRobot = Tags("Robot");
   const TagRobotWithId = (id: string) => TagRobot.and(Tags(`Robot:${id}`));

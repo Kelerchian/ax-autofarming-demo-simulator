@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-namespace */
 import * as z from "zod";
 import { v4 as uuid } from "uuid";
 import { pipe } from "effect";
+import { Actyx } from "@actyx/sdk";
 
 export namespace Pos {
   const RANDOM_MINIMUM_DEVIATION = 5;

@@ -11,6 +11,7 @@ import {
   WINDOW_Y_CENTER,
   WINDOW_Y_SIZE,
 } from "../../common/window";
+import { VaettirReact } from "vaettir-react";
 
 export const VisualizerFrame = (
   props: React.DetailedHTMLProps<
@@ -36,6 +37,7 @@ export const ActorViewDimension = 0;
 export const ActorView = ({ sim }: { sim: ActorSim }) => {
   const selector = SelectorCtx.borrow();
   const actor = sim.api.actor();
+  VaettirReact.useObs(sim.channels.change);
   const assumer = ActorAssumerCtx.borrowListen();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const hoverAgent = useMemo(selector.api.createHoverAgent, []);
@@ -99,6 +101,7 @@ export const ActorLogo = ({ actor }: { actor: Actor.Type }) => {
 
 const actorTip = (actor: Actor.Type) =>
   [
+    `id: ${actor.id}`,
     `type: ${actor.t}`,
     `coord: ${Math.round(actor.pos.x * 100) / 100}, ${
       Math.round(actor.pos.y * 100) / 100
