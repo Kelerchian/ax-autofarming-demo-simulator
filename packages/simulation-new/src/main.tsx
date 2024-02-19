@@ -27,23 +27,31 @@ const simulator = Simulator(actyx);
 simulator.api.init();
 
 async function setupPlant() {
-  let plantId = localStorage.getItem("plantId");
-  if (!plantId) {
-    plantId = uuid();
+  const id = await (async () => {
+    const oldId = localStorage.getItem("plantId");
+    if (
+      oldId &&
+      (await simulator.api.queryActorIdExistence(oldId))?.t === "Sensor"
+    ) {
+      return oldId;
+    }
+
+    const newId = uuid();
     await PlantHappenings.publishPlantCreated(
       actyx,
       Sensor.make({
-        id: plantId,
-        pos: { x: 0, y: 200 },
+        id: newId,
+        pos: { x: Math.round(Math.random() + 400) - 800, y: 200 },
       })
     );
-    localStorage.setItem("plantId", plantId);
-  }
+    localStorage.setItem("plantId", newId);
+    return newId;
+  })();
 
-  // Since simulator is running
+  // Wait until actor is retrievable from the simulator
   const plant = await (async () => {
     while (true) {
-      const actor = simulator.api.simsMap().get(plantId)?.api.actor();
+      const actor = simulator.api.simsMap().get(id)?.api.actor();
       if (actor?.t === "Sensor") {
         return actor;
       }
@@ -80,23 +88,31 @@ async function runWaterLoop(plant: Sensor.Type) {
 }
 
 async function setupRobot() {
-  let robotId = localStorage.getItem("robotId");
-  if (!robotId) {
-    robotId = uuid();
-    localStorage.setItem("robotId", robotId);
+  const id = await (async () => {
+    const oldId = localStorage.getItem("robotId");
+    if (
+      oldId &&
+      (await simulator.api.queryActorIdExistence(oldId))?.t === "Robot"
+    ) {
+      return oldId;
+    }
+
+    const newId = uuid();
     await RobotHappenings.publishCreateRobotEvent(
       actyx,
       Robot.make({
-        id: robotId,
-        pos: { x: 0, y: -200 },
+        id: newId,
+        pos: { x: Math.round(Math.random() + 400) - 800, y: -200 },
       })
     );
-  }
+    localStorage.setItem("robotId", newId);
+    return newId;
+  })();
 
   // Since simulator is running
   const robot = await (async () => {
     while (true) {
-      const actor = simulator.api.simsMap().get(robotId)?.api.actor();
+      const actor = simulator.api.simsMap().get(id)?.api.actor();
       if (actor?.t === "Robot") {
         return actor;
       }

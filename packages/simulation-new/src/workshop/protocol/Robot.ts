@@ -1,171 +1,136 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { MachineEvent, createMachineRunner } from "@actyx/machine-runner";
-import { Actyx, AqlEventMessage } from "@actyx/sdk";
-import { Events, manifest, protocol, PlantRequest } from "./protocol";
+import { Actyx } from "@actyx/sdk";
+import { Events, Helper, protocol } from "./protocol";
 import { sleep } from "systemic-ts-utils/async-utils";
-import { RobotControlHandle } from "../../worker/sim";
+import { Pos } from "../../common/actors";
+import { createMachineRunner } from "@actyx/machine-runner";
 
 const machine = protocol.makeMachine("robot");
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace States {
-    export const Initial = machine
-        .designEmpty("Initial")
-        .command("create", [Events.PlantRequestedWater], (_, request: PlantRequest) => [request])
-        .finish()
+  export const Init = machine
+    .designState("Init")
+    .withPayload<{ selfId: string }>()
+    .finish();
 
-    export const Idle = machine
-        .designState("Idle")
-        .withPayload<PlantRequest>()
-        .command("moveToPlant", [Events.PlantRequestedWater], (context) => [context.self])
-        .finish()
+  export const WaterRequested = machine
+    .designState("WaterRequested")
+    .withPayload<{
+      selfId: string;
+      pos: { x: number; y: number };
+      offered: boolean;
+    }>()
+    .command(
+      "offer",
+      [Events.HelpOffered],
+      (_, robotPos: { x: number; y: number }) => [
+        { robotId: _.self.selfId, pos: robotPos },
+      ]
+    )
+    .finish();
 
-    export const MovingToPlant = machine
-        .designState("MovingToPlant")
-        .withPayload<PlantRequest>()
-        .command("reachedPlant", [Events.ReachedPlant], (context) => [context.self])
-        .finish()
+  export const HelpAccepted = machine
+    .designState("HelpAccepted")
+    .withPayload<{
+      selfId: string;
+      pos: { x: number; y: number };
+      assignedRobotId: string;
+    }>()
+    .command("markAsDone", [Events.WateringDone], () => [{}])
+    .finish();
 
-    export const WateringPlant = machine
-        .designState("WateringPlant")
-        .withPayload<PlantRequest>()
-        .command("stopWateringPlant", [Events.PlantHasWater], (context) => [context.self])
-        .finish()
+  export const WateringDone = machine.designEmpty("WateringDone").finish();
 
-    export const FinishedWateringPlant = machine
-        .designState("FinishedWateringPlant")
-        .withPayload<PlantRequest>()
-        .command("done", [Events.Done], (context) => [context.self])
-        .finish()
+  export const All = [
+    Init,
+    WaterRequested,
+    HelpAccepted,
+    WateringDone,
+  ] as const;
 
-    export const Done = machine
-        .designState("Done")
-        .withPayload<PlantRequest>()
-        .finish()
+  // Reactions
+  // =========
 
-    export const All = [
-        Initial,
-        MovingToPlant,
-        WateringPlant,
-        FinishedWateringPlant,
-        Done
-    ] as const
+  Init.react(
+    [Events.WaterRequested],
+    States.WaterRequested,
+    (ctx, requested) => ({
+      ...ctx.self,
+      offered: false,
+      pos: requested.payload.pos,
+    })
+  );
+
+  WaterRequested.reactIntoSelf([Events.HelpOffered], (ctx, e) => ({
+    ...ctx.self,
+    offered: e.payload.robotId === ctx.self.selfId,
+  }));
+
+  WaterRequested.react([Events.HelpAccepted], HelpAccepted, (ctx, e) => ({
+    ...ctx.self,
+    assignedRobotId: e.payload.robotId,
+  }));
+
+  HelpAccepted.react([Events.WateringDone], WateringDone, () => ({}));
 }
+export const main = async (
+  actyx: Actyx,
+  selfId: () => string,
+  pos: () => { x: number; y: number },
+  doWateringTask: (pos: { x: number; y: number }) => Promise<unknown>
+) => {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const task = await waitForRequest(actyx, pos);
+    await executeRequest(actyx, selfId, pos, doWateringTask, task);
+  }
+};
 
-States.Initial.react(
-    [Events.PlantRequestedWater],
-    States.Idle,
-    (_, event) => ({
-        pos: event.payload.pos,
-        requestId: event.payload.requestId,
-    })
-)
+export const waitForRequest = async (
+  actyx: Actyx,
+  pos: () => { x: number; y: number }
+) => {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const bestOpenReq = (await Helper.openRequests(actyx))
+      .sort((a, b) => Pos.distance(a.pos, pos()) - Pos.distance(b.pos, pos()))
+      .at(0);
+    if (bestOpenReq) return bestOpenReq;
+    await sleep(500);
+  }
+};
 
-States.Idle.react(
-    [Events.PlantRequestedWater],
-    States.MovingToPlant,
-    (state, _) => ({
-        pos: state.self.pos,
-        requestId: state.self.requestId,
-    })
-)
+export const executeRequest = async (
+  actyx: Actyx,
+  selfId: () => string,
+  pos: () => { x: number; y: number },
+  doWateringTask: (pos: { x: number; y: number }) => Promise<unknown>,
+  request: Events.WaterRequestedPayload
+) => {
+  const machine = createMachineRunner(
+    actyx,
+    protocol.tagWithEntityId(request.requestId),
+    States.Init,
+    { selfId: selfId() }
+  );
 
-States.MovingToPlant.react(
-    [Events.ReachedPlant],
-    States.WateringPlant,
-    (state, _) => ({
-        pos: state.self.pos,
-        requestId: state.self.requestId,
-    })
-)
-
-States.WateringPlant.react(
-    [Events.PlantHasWater],
-    States.FinishedWateringPlant,
-    (state, _) => ({
-        pos: state.self.pos,
-        requestId: state.self.requestId,
-    })
-)
-
-States.FinishedWateringPlant.react(
-    [Events.Done],
-    States.Done,
-    (state, _) => ({
-        pos: state.self.pos,
-        requestId: state.self.requestId,
-    })
-)
-
-async function loop(sdk: Actyx) {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-        const unwateredPlant = await sdk.queryAql(`
-            PRAGMA features := interpolation subQuery
-
-            FROM '${machine.swarmName}:Created'
-
-            LET doneEvents :=
-                FROM \`${machine.swarmName}:{_.requestId}\`
-                & '${machine.swarmName}:PlantHasWater'
-
-            LET done := IsDefined(doneEvents[0])
-
-            FILTER !done
-        `).then((responses) => (
-            responses.filter(
-                (event): event is AqlEventMessage => (event.type === "event")
-            )[0] || undefined
-        ));
-
-        if (!unwateredPlant) {
-            continue
-        }
-
-        const payload = unwateredPlant.payload as MachineEvent.Of<typeof Events.PlantRequestedWater>
-
-        const runner = createMachineRunner(
-            sdk,
-            protocol.tagWithEntityId(payload.requestId),
-            States.Initial,
-            undefined
-        )
-
-        console.log("machine created")
-
-        for await (const state of runner) {
-            if (state.is(States.Initial)) {
-                console.log("initial")
-                state.cast().commands()?.create(payload)
-            } else if (state.is(States.Idle)) {
-                console.log("idle")
-                state.cast().commands()?.moveToPlant()
-            } else if (state.is(States.MovingToPlant)) {
-                console.log("moving")
-                state.cast().commands()?.reachedPlant()
-            } else if (state.is(States.WateringPlant)) {
-                console.log("watering")
-                state.cast().commands()?.stopWateringPlant()
-            } else if (state.is(States.FinishedWateringPlant)) {
-                console.log("finished")
-                state.cast().commands()?.done()
-            }
-        }
-
-        await sleep(100)
+  for await (const state of machine) {
+    const requested = state.as(States.WaterRequested);
+    if (requested && !requested.payload.offered) {
+      await requested.commands()?.offer(pos());
     }
-}
 
-export async function main(robotControl: RobotControlHandle) {
-    const sdk = await Actyx.of(manifest);
+    const accepted = state.as(States.HelpAccepted);
+    if (accepted) {
+      // if someone else is accepted, exit from the loop
+      if (accepted.payload.assignedRobotId !== selfId()) {
+        break;
+      }
 
-    // usage of robotControl can be seen in the type hints
-    // @example:
-    // robotControl.control.moveToCoord(...)
-    try {
-        await loop(sdk)
-    } finally {
-        sdk.dispose()
+      await doWateringTask(accepted.payload.pos);
+      await accepted.commands()?.markAsDone();
+      break;
     }
-}
-
+  }
+};

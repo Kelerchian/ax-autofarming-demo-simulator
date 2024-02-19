@@ -10,6 +10,8 @@ import * as z from "zod";
 
 const World = Tags("World");
 export const WorldCreate = World.and(Tags("World:Create"));
+export const WorldCreateWithId = (id: string) =>
+  World.and(Tags(`World:Create:${id}`));
 export const WorldUpdate = World.and(Tags("World:Update"));
 
 export namespace PlantHappenings {
@@ -39,6 +41,7 @@ export namespace PlantHappenings {
   export const publishPlantCreated = (sdk: Actyx, sensor: Sensor.Type) => {
     return sdk.publish(
       WorldCreate.and(TagPlant)
+        .and(WorldCreateWithId(sensor.id))
         .and(TagPlantWithId(sensor.id))
         .and(TagPlantCreated)
         .apply(sensor)
@@ -92,6 +95,7 @@ export namespace RobotHappenings {
   // emissions
   export const publishCreateRobotEvent = (sdk: Actyx, robot: Robot.Type) => {
     const taggedEvent = WorldCreate.and(TagRobot)
+      .and(WorldCreateWithId(robot.id))
       .and(TagRobotCreated)
       .apply(Robot.make({ pos: robot.pos, id: robot.id }));
 

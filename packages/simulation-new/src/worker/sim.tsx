@@ -1,16 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Actor, Id, Pos, Robot, Sensor, WaterPump } from "../common/actors";
+import { Actor, Robot, Sensor, WaterPump } from "../common/actors";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
-import {
-  PlantControl,
-  RobotControl,
-  TaskOverridenError,
-} from "../common/client";
-import { Actyx } from "@actyx/sdk";
+import { PlantControl, RobotControl } from "../common/client";
+import { Actyx, AqlEventMessage } from "@actyx/sdk";
 import {
   RobotHappenings,
   WorldCreate,
+  WorldCreateWithId,
   WorldUpdate,
   WorldUpdatePayload,
 } from "../common/happenings";
@@ -50,13 +47,22 @@ export const Simulator = (actyx: Actyx) =>
           });
         });
 
-      // const add = <T extends Actor.Type>(actor: T): ControlHandleOf<T> => {
-      //   const sim = ActorSim(() => data.legacyActorMap, actor);
-      //   data.sims.set(actor.id, sim);
-      //   data.legacyActorMap.set(actor.id, actor);
-      //   channels.change.emit();
-      //   return sim.api.controlHandle() as ControlHandleOf<T>;
-      // };
+      const queryActorById = (
+        id: string
+      ): Promise<Robot.Type | Sensor.Type | null> =>
+        actyx
+          .queryAql({
+            query: `FROM ${WorldCreateWithId(id)}`,
+          })
+          .then((events) => {
+            const firstEvent = events
+              .filter((e): e is AqlEventMessage => e.type === "event")
+              .at(0);
+            if (!firstEvent) return null;
+            const parsed = Actor.Type.safeParse(firstEvent.payload);
+            if (!parsed.success) return null;
+            return parsed.data;
+          });
 
       const actorsMap = (): ReadonlyMap<string, ActorSim> => data.sims;
 
@@ -66,6 +72,7 @@ export const Simulator = (actyx: Actyx) =>
         simsMap: actorsMap,
         actors,
         init,
+        queryActorIdExistence: queryActorById,
       };
     })
     .finish();
