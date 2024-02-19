@@ -6,7 +6,7 @@ import { Simulator } from "./worker/sim.tsx";
 import { Actyx } from "@actyx/sdk";
 import { PlantHappenings, RobotHappenings } from "./common/happenings.tsx";
 import { v4 as uuid } from "uuid";
-import { Pos, Robot, Sensor } from "./common/actors.tsx";
+import { Robot, Sensor } from "./common/actors.tsx";
 import { sleep } from "systemic-ts-utils/async-utils";
 import { pipe } from "effect";
 
@@ -146,20 +146,22 @@ async function runRobotLoop(robot: Robot.Type) {
     }
   };
 
-  // hacks
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).robotCommand = {
-    move: (pos: { x: number; y: number }) => {
-      const parsedPos = Pos.Type.shape.pos.safeParse(pos);
-      if (!parsedPos.success) return;
+  // Subscribe to new tasks, whenever they arrive, set them as the current task
+  actyx.subscribeAql(
+    `FROM ${RobotHappenings.TagRobotNewMoveTask} FILTER _.id = '${robot.id}'`,
+    (event) => {
+      if (event.type !== "event") return;
+      const parsed = RobotHappenings.PosUpdate.Type.safeParse(event.payload);
+      if (!parsed.success || parsed.data.id !== robot.id) return;
+      if (localReality.task) throw new Error("theres an ongoing task");
       localReality.task = {
         t: "MoveToCoordinate",
         from: { pos: localReality.pos },
-        to: { pos: parsedPos.data },
+        to: { pos: parsed.data.pos },
         start: Date.now(),
       };
-    },
-  };
+    }
+  );
 
   actyx.subscribeAql(
     // TODO: review event payload / tag

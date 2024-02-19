@@ -36,7 +36,7 @@ export const Simulator = (actyx: Actyx) =>
           actyx.subscribe({ query: WorldCreate }, (actyxEvent) => {
             const entity = Actor.Type.safeParse(actyxEvent.payload);
             if (entity.success) {
-              const sim = ActorSim(() => data.legacyActorMap, entity.data);
+              const sim = ActorSim(entity.data, actyx);
               data.sims.set(entity.data.id, sim);
               channels.change.emit();
             }
@@ -71,10 +71,7 @@ export const Simulator = (actyx: Actyx) =>
     .finish();
 
 export type ActorSim = ReturnType<typeof ActorSim>;
-export const ActorSim = (
-  otherActors: () => Actor.ReadonlyActorsMap,
-  actor: Actor.Type
-) =>
+export const ActorSim = (actor: Actor.Type, actyx: Actyx) =>
   Vaettir.build()
     .api(({ channels, onDestroy }) => {
       const feed: (eventPayload: WorldUpdatePayload) => unknown = (() => {
@@ -115,7 +112,7 @@ export const ActorSim = (
         if (actor.t === "Robot") {
           return {
             actor,
-            control: makeRobotControl(otherActors, actor),
+            control: makeRobotControl(actor, actyx),
             type: "RobotControlHandle",
           };
         }
@@ -170,13 +167,19 @@ const makePlantControl = (plant: Sensor.Type): PlantControl => ({
   },
 });
 
-const makeRobotControl = (
-  actors: () => Actor.ReadonlyActorsMap,
-  robot: Robot.Type
-): RobotControl => ({
+const makeRobotControl = (robot: Robot.Type, actyx: Actyx): RobotControl => ({
   get: async () => robot,
-  moveToCoord: async (pos, REFRESH_TIME) => {
-    return;
+  moveToCoord: async (pos) => {
+    // const parsedPos = Pos.Type.shape.pos.safeParse(pos);
+    // if (!parsedPos.success) return;
+    // localReality.task = {
+    //   t: "MoveToCoordinate",
+    //   from: { pos: localReality.pos },
+    //   to: { pos: parsedPos.data },
+    //   start: Date.now(),
+    // };
+
+    RobotHappenings.publishNewMoveTask(actyx, { id: robot.id, pos });
   },
   waterPlant: async (plantId: string, REFRESH_TIME?: number) => {
     return;

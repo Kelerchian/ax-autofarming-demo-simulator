@@ -81,6 +81,8 @@ export namespace RobotHappenings {
   export const TagRobotCreated = Tags("RobotCreated");
   export const TagRobotPosUpdate = Tags("RobotPosUpdate");
 
+  export const TagRobotNewMoveTask = Tags("RobotNewMoveTask");
+
   // PlantWatered event
   export namespace PosUpdate {
     export type Type = z.TypeOf<typeof Type>;
@@ -94,6 +96,12 @@ export namespace RobotHappenings {
       .apply(Robot.make({ pos: robot.pos, id: robot.id }));
 
     return sdk.publish(taggedEvent);
+  };
+
+  export const publishNewMoveTask = (sdk: Actyx, pos: PosUpdate.Type) => {
+    sdk.publish(
+      TagRobot.and(TagRobotWithId(pos.id)).and(TagRobotNewMoveTask).apply(pos)
+    );
   };
 
   export const publishPosUpdate = (sdk: Actyx, posUpdate: PosUpdate.Type) =>
