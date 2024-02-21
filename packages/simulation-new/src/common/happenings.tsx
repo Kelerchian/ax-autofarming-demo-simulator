@@ -7,6 +7,8 @@
 import { Actyx, Tags } from "@actyx/sdk";
 import { Id, Pos, Robot, Sensor } from "./actors";
 import * as z from "zod";
+import { Events, ProtocolName } from "../workshop/protocol/protocol";
+import { v4 } from "uuid";
 
 const World = Tags("World");
 export const WorldCreate = World.and(Tags("World:Create"));
@@ -14,6 +16,8 @@ export const WorldCreateWithId = (id: string) =>
   World.and(Tags(`World:Create:${id}`));
 export const WorldUpdate = World.and(Tags("World:Update"));
 
+// This should probably be moved to a single Plant class with the events and the sensor
+// we're not getting much out of this separation
 export namespace PlantHappenings {
   // base tags for common subscriptions
   export const TagPlant = Tags("Plant");
@@ -24,6 +28,7 @@ export namespace PlantHappenings {
   export const TagPlantCreated = Tags("PlantCreated");
   export const TagPlantWatered = Tags("PlantWatered");
   export const TagPlantWaterLevelUpdate = Tags("TagPlantWaterLevel");
+  export const TagPlantWaterRequested = Tags("TagPlantWaterRequested");
 
   // PlantWatered event
   export namespace WaterLevel {
@@ -57,6 +62,24 @@ export namespace PlantHappenings {
         .and(TagPlantWaterLevelUpdate)
         .apply(waterLevelUpdate)
     );
+
+  export const publishWaterRequest = (sdk: Actyx, sensor: Sensor.Type) => {
+    const requestId = v4();
+    sdk.publish(
+      Tags(ProtocolName)
+        .and(TagPlant)
+        .and(TagPlantWithId(sensor.id))
+        .and(TagPlantWaterRequested)
+        .apply(
+          Events.WaterRequested.make({
+            pos: sensor.pos,
+            requestId,
+            plantId: sensor.id,
+          })
+        )
+    );
+    return requestId;
+  };
 
   export const emitWatered = (sdk: Actyx, watered: Watered.Type) =>
     sdk.publish(TagPlantWithId(watered.id).and(TagPlantWatered).apply(watered));

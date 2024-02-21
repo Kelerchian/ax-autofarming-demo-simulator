@@ -5,10 +5,12 @@ import "./index.scss";
 import { Simulator } from "./worker/sim.tsx";
 import { Actyx } from "@actyx/sdk";
 import { PlantHappenings, RobotHappenings } from "./common/happenings.tsx";
-import { v4 as uuid } from "uuid";
+import { v4 as uuid, v4 } from "uuid";
 import { Robot, Sensor } from "./common/actors.tsx";
 import { sleep } from "systemic-ts-utils/async-utils";
 import { pipe } from "effect";
+import { Helper } from "./workshop/protocol/protocol.ts";
+import { performWateringProtocol } from "./workshop/protocol/Plant.ts";
 
 const actyx = await Actyx.of(
   {
@@ -73,10 +75,32 @@ async function runWaterLoop(plant: Sensor.Type) {
       Sensor.WaterLevel.applyWater(plant); // TODO: this needs to reflect on UI
     }
   );
+
+  // Query Actyx to know if this plant already performed a request
+  // this is necessary to keep track of state across page refreshes
+  // avoiding creating new requests when one was already issued
+  let latestRequestId = (await Helper.plantOpenRequest(actyx, plant.id))
+    ?.requestId;
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     await sleep(100);
     const newWaterAmount = Math.max(plant.water - 1, 0);
+
+    // TODO: place water threshold as constant
+    if (!latestRequestId && newWaterAmount < 50) {
+      // I've generated the UUID here because it's easier than finding a way to
+      // launch the machine (thus generating the ID) and return the ID while keeping the machine on
+      // the callback is also kind of an hack but was the only way I found to consistently
+      // keep the state across refreshes
+      latestRequestId = v4();
+      performWateringProtocol(actyx, plant.pos, latestRequestId, plant.id).then(
+        () => {
+          latestRequestId = undefined;
+        }
+      );
+    }
+
     if (newWaterAmount !== plant.water) {
       plant.water = newWaterAmount;
       await PlantHappenings.publishWaterLevelUpdate(actyx, {
