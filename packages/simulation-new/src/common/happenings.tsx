@@ -21,8 +21,7 @@ export const WorldUpdate = World.and(Tags("World:Update"));
 export namespace PlantHappenings {
   // base tags for common subscriptions
   export const TagPlant = Tags("Plant");
-  export const TagPlantWithId = (id: string) =>
-    TagPlant.and(Tags(`Plant:${id}`));
+  export const TagPlantWithId = (id: string) => Tags(`Plant:${id}`);
 
   // specific event-based tags
   export const TagPlantCreated = Tags("PlantCreated");
@@ -82,7 +81,11 @@ export namespace PlantHappenings {
   };
 
   export const emitWatered = (sdk: Actyx, watered: Watered.Type) =>
-    sdk.publish(TagPlantWithId(watered.id).and(TagPlantWatered).apply(watered));
+    sdk.publish(
+      TagPlant.and(TagPlantWithId(watered.id))
+        .and(TagPlantWatered)
+        .apply(watered)
+    );
 
   // TODO: subscriptions, will do later after we know the API shape we want
 }
@@ -100,8 +103,8 @@ export namespace RobotHappenings {
   }
 
   // base tags for common subscriptions
-  const TagRobot = Tags("Robot");
-  const TagRobotWithId = (id: string) => TagRobot.and(Tags(`Robot:${id}`));
+  export const TagRobot = Tags("Robot");
+  export const TagRobotWithId = (id: string) => Tags(`Robot:${id}`);
 
   // specific event-based tags
   export const TagRobotCreated = Tags("RobotCreated");
@@ -133,7 +136,8 @@ export namespace RobotHappenings {
 
   export const publishPosUpdate = (sdk: Actyx, posUpdate: PosUpdate.Type) =>
     sdk.publish(
-      WorldUpdate.and(TagRobotWithId(posUpdate.id))
+      WorldUpdate.and(TagRobot)
+        .and(TagRobotWithId(posUpdate.id))
         .and(TagRobotPosUpdate)
         .apply(posUpdate)
     );

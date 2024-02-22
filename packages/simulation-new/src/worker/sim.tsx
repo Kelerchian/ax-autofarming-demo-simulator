@@ -1,18 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Actor, Robot, Sensor, WaterPump } from "../common/actors";
+import { Actor, Robot, Sensor } from "../common/actors";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
 import { PlantControl, RobotControl } from "../common/client";
-import { Actyx, AqlEventMessage } from "@actyx/sdk";
+import { Actyx } from "@actyx/sdk";
 import {
   RobotHappenings,
   WorldCreate,
-  WorldCreateWithId,
   WorldUpdate,
   WorldUpdatePayload,
 } from "../common/happenings";
-
-export const GLOBAL_DELTA = Math.round(1000 / 30);
 
 export const SimulatorCtx = VaettirReact.Context.make<Simulator>();
 
@@ -47,33 +44,12 @@ export const Simulator = (actyx: Actyx) =>
           });
         });
 
-      const queryActorById = (
-        id: string
-      ): Promise<Robot.Type | Sensor.Type | null> =>
-        actyx
-          .queryAql({
-            query: `FROM ${WorldCreateWithId(id)}`,
-          })
-          .then((events) => {
-            const firstEvent = events
-              .filter((e): e is AqlEventMessage => e.type === "event")
-              .at(0);
-            if (!firstEvent) return null;
-            const parsed = Actor.Type.safeParse(firstEvent.payload);
-            if (!parsed.success) return null;
-            return parsed.data;
-          });
-
-      const actorsMap = (): ReadonlyMap<string, ActorSim> => data.sims;
+      const getActorById = (id: string): ActorSim | undefined =>
+        data.sims.get(id);
 
       const actors = (): ActorSim[] => Array.from(data.sims.values());
 
-      return {
-        simsMap: actorsMap,
-        actors,
-        init,
-        queryActorIdExistence: queryActorById,
-      };
+      return { init, actors, getActorById };
     })
     .finish();
 
@@ -81,53 +57,45 @@ export type ActorSim = ReturnType<typeof ActorSim>;
 export const ActorSim = (actor: Actor.Type, actyx: Actyx) =>
   Vaettir.build()
     .api(({ channels, onDestroy }) => {
-      const feed: (eventPayload: WorldUpdatePayload) => unknown = (() => {
-        if (actor.t === "Sensor") {
-          return (eventPayload: WorldUpdatePayload) => {
-            const wateredEvent =
-              RobotHappenings.WateredEvent.Type.safeParse(eventPayload);
-            if (wateredEvent.success) {
-              actor.water = wateredEvent.data.water;
-              channels.change.emit();
-            }
-          };
+      const feed: (eventPayload: WorldUpdatePayload) => void = (() => {
+        switch (actor.t) {
+          case "Robot":
+            return (eventPayload: WorldUpdatePayload) => {
+              const positionEvent =
+                RobotHappenings.PosUpdate.Type.safeParse(eventPayload);
+              if (positionEvent.success) {
+                actor.pos = positionEvent.data.pos;
+                channels.change.emit();
+              }
+            };
+          case "Sensor":
+            return (eventPayload: WorldUpdatePayload) => {
+              const wateredEvent =
+                RobotHappenings.WateredEvent.Type.safeParse(eventPayload);
+              if (wateredEvent.success) {
+                actor.water = wateredEvent.data.water;
+                channels.change.emit();
+              }
+            };
         }
-        if (actor.t === "Robot") {
-          return (eventPayload: WorldUpdatePayload) => {
-            const positionEvent =
-              RobotHappenings.PosUpdate.Type.safeParse(eventPayload);
-            if (positionEvent.success) {
-              actor.pos = positionEvent.data.pos;
-              channels.change.emit();
-            }
-          };
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        return (_: unknown) => {};
       })();
 
       // TODO: keep for the UI
       const controlHandle = (): ControlHandle => {
-        if (actor.t === "Sensor") {
-          return {
-            actor,
-            control: makePlantControl(actor),
-            type: "SensorControlHandle",
-          };
+        switch (actor.t) {
+          case "Robot":
+            return {
+              actor,
+              control: makeRobotControl(actor, actyx),
+              type: "RobotControlHandle",
+            };
+          case "Sensor":
+            return {
+              actor,
+              control: makePlantControl(actor),
+              type: "SensorControlHandle",
+            };
         }
-        if (actor.t === "Robot") {
-          return {
-            actor,
-            control: makeRobotControl(actor, actyx),
-            type: "RobotControlHandle",
-          };
-        }
-        return {
-          actor,
-          control: null,
-          type: "WaterPumpControlHandle",
-        };
       };
 
       return Object.freeze({
@@ -140,16 +108,11 @@ export const ActorSim = (actor: Actor.Type, actyx: Actyx) =>
     })
     .finish();
 
-export type ControlHandle =
-  | SensorControlHandle
-  | RobotControlHandle
-  | WaterPumpControlHandle;
+export type ControlHandle = SensorControlHandle | RobotControlHandle;
 
 export type ControlHandleOf<T extends Actor.Type> = T extends Robot.Type
   ? RobotControlHandle
-  : T extends Sensor.Type
-  ? SensorControlHandle
-  : WaterPumpControlHandle;
+  : SensorControlHandle;
 
 export type RobotControlHandle = {
   type: "RobotControlHandle";
@@ -160,11 +123,6 @@ export type SensorControlHandle = {
   type: "SensorControlHandle";
   actor: Sensor.Type;
   control: PlantControl;
-};
-export type WaterPumpControlHandle = {
-  type: "WaterPumpControlHandle";
-  actor: WaterPump.Type;
-  control: null;
 };
 
 const makePlantControl = (plant: Sensor.Type): PlantControl => ({
@@ -177,15 +135,6 @@ const makePlantControl = (plant: Sensor.Type): PlantControl => ({
 const makeRobotControl = (robot: Robot.Type, actyx: Actyx): RobotControl => ({
   get: async () => robot,
   moveToCoord: async (pos) => {
-    // const parsedPos = Pos.Type.shape.pos.safeParse(pos);
-    // if (!parsedPos.success) return;
-    // localReality.task = {
-    //   t: "MoveToCoordinate",
-    //   from: { pos: localReality.pos },
-    //   to: { pos: parsedPos.data },
-    //   start: Date.now(),
-    // };
-
     RobotHappenings.publishNewMoveTask(actyx, { id: robot.id, pos });
   },
   waterPlant: async (plantId: string, REFRESH_TIME?: number) => {

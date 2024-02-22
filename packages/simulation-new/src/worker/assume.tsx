@@ -26,7 +26,7 @@ export const ActorAssumer = (simulator: Simulator) =>
       const assume = (id: string) => {
         cleanUpAndSwap();
 
-        const sim = simulator.api.simsMap().get(id);
+        const sim = simulator.api.getActorById(id);
         if (!sim) return;
 
         const controlHandle: ControlHandle = sim.api.controlHandle();

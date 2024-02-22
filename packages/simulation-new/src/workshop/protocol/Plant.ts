@@ -14,7 +14,7 @@ namespace States {
     .designState("Init")
     .withPayload<{ requestId: string; pos: { x: number; y: number }, plantId: string }>()
     .command("request", [Events.WaterRequested], (_) => [
-      { pos: { ..._.self.pos }, requestId: uuidv4(), plantId: _.self.plantId },
+      { pos: _.self.pos, requestId: uuidv4(), plantId: _.self.plantId },
     ])
     .finish();
 

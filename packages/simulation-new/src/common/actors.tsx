@@ -199,16 +199,6 @@ export namespace Sensor {
   }
 }
 
-export namespace WaterPump {
-  export const Type = ActorBase.and(z.object({ t: z.literal("WaterPump") }));
-  export type Type = z.TypeOf<typeof Type>;
-  export const make = ({ pos, id }: { pos: Pos.Type; id?: string }): Type => ({
-    t: "WaterPump",
-    ...Id.make(id),
-    ...pos,
-  });
-}
-
 export namespace Actor {
   export type Type = z.TypeOf<typeof Type>;
   export const Type = z.union([Robot.Type, Sensor.Type]);
