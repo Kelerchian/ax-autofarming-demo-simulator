@@ -19,7 +19,8 @@ export class Robot {
         const id = Robot.initId();
         const data = await Robot.retrieveFromActyx(id, actyx);
         if (data) {
-            return new Robot(id, (await Robot.retrieveLatestStateFromActyx(id, actyx))?.pos ?? data.pos)
+            const latestState = await Robot.retrieveLatestStateFromActyx(id, actyx);
+            return new Robot(id, latestState?.pos ?? data.pos)
         }
         const robot = new Robot(id, { x: -100, y: -100 })
         await actyx.publish(
@@ -39,21 +40,24 @@ export class Robot {
         // eslint-disable-next-line no-constant-condition
         while (true) {
             await sleep(10);
+            if (!this.task) continue
 
-            if (this.task?.t === "MoveToCoordinate") {
-                const newPosition = this.calculateNewPosition(
-                    this.task.from.pos,
-                    this.task.to.pos,
-                    this.task.start
-                )
-                if (newPosition) {
-                    await RobotHappenings.publishPosUpdate(actyx, { id: this.id, pos: newPosition });
-                    continue
+            switch (this.task.t) {
+                case "MoveToCoordinate": {
+                    const newPosition = this.calculateNewPosition(
+                        this.task.from.pos,
+                        this.task.to.pos,
+                        this.task.start
+                    )
+                    if (newPosition) {
+                        this.position = newPosition
+                        await RobotHappenings.publishPosUpdate(actyx, { id: this.id, pos: newPosition });
+                        continue
+                    }
+                    await RobotHappenings.publishPosUpdate(actyx, { id: this.id, pos: this.task.to.pos });
+                    this.task = undefined
                 }
-                await RobotHappenings.publishPosUpdate(actyx, { id: this.id, pos: this.task.to.pos });
-                this.task = undefined
             }
-
         }
     }
 
@@ -131,8 +135,8 @@ export class Robot {
         // we still need to take into account the current request it may be fulfilling
         const actyxEvents = await actyx.queryAql(`
             PRAGMA features := aggregate
-            FROM ${RobotHappenings.TagRobotWithId} & ${WorldUpdate}
-            AGGREGATE LAST(_.pos)
+            FROM ${RobotHappenings.TagRobotWithId(id)} & ${WorldUpdate}
+            AGGREGATE LAST(_)
         `)
         const event = actyxEvents.filter((e): e is AqlEventMessage => e.type === "event").at(0)
         const parsed = RobotHappenings.PosUpdate.Type.safeParse(event?.payload)

@@ -167,12 +167,6 @@ export namespace Sensor {
     };
   }
 
-  // export namespace Step {
-  //   export const step = (plant: Sensor.Type, deltaMs: number) => {
-  //     plant.water = Math.max(plant.water - deltaMs * plant.decay, 0);
-  //   };
-  // }
-
   export namespace WaterLevel {
     export const withinWateringProximity = (dist: number) =>
       dist < WaterMinimumProximity;
