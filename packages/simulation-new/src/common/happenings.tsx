@@ -7,8 +7,6 @@
 import { Actyx, Tags } from "@actyx/sdk";
 import { Id, Pos, Sensor } from "./actors";
 import * as z from "zod";
-import { Events, ProtocolName } from "../workshop/protocol/protocol";
-import { v4 } from "uuid";
 
 const World = Tags("World");
 export const WorldCreate = World.and(Tags("World:Create"));
@@ -61,24 +59,6 @@ export namespace PlantHappenings {
         .and(TagPlantWaterLevelUpdate)
         .apply(waterLevelUpdate)
     );
-
-  export const publishWaterRequest = (sdk: Actyx, sensor: Sensor.Type) => {
-    const requestId = v4();
-    sdk.publish(
-      Tags(ProtocolName)
-        .and(TagPlant)
-        .and(TagPlantWithId(sensor.id))
-        .and(TagPlantWaterRequested)
-        .apply(
-          Events.WaterRequested.make({
-            pos: sensor.pos,
-            requestId,
-            plantId: sensor.id,
-          })
-        )
-    );
-    return requestId;
-  };
 
   export const emitWatered = (sdk: Actyx, watered: Watered.Type) =>
     sdk.publish(

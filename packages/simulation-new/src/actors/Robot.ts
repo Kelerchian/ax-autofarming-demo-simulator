@@ -63,6 +63,9 @@ export class Robot {
               id: this.id,
               pos: task.to.pos,
             });
+            // again to avoid race condition caused by subscription
+            // to the above event that sometimes come late
+            this.position = task.to.pos;
             this.task = undefined;
           }
         }
@@ -79,7 +82,6 @@ export class Robot {
           (await this.pickPreviouslyAcceptedRequest()) ||
           (await this.pickOpenRequest());
         if (request) {
-          console.log("received request");
           await this.executeRequest(request);
         }
       } catch (error) {
@@ -109,7 +111,7 @@ export class Robot {
             FROM '${ProtocolName}' ORDER DESC FILTER _.type = '${Events.WaterRequested.type}'
             LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
             FILTER !IsDefined(done_events[0])
-            LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.HelpAccepted.type}' & _.robotId = '${this.id}' END ?? []
+            LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.HelpAccepted.type}' FILTER IsDefined(_.robotId) FILTER _.robotId = '${this.id}' END
             FILTER IsDefined(accepted_events[0])
         `;
     const actyxEvents = await actyx.queryAql(query);
@@ -293,15 +295,12 @@ export class Robot {
 
   private async moveTo(pos: Pos.Type) {
     if (Pos.equal(pos.pos, this.position)) return;
-    console.log("move to", 1);
     await RobotHappenings.publishNewMoveTask(this.actyx, {
       id: this.id,
       ...pos,
     });
-    console.log("move to", 2);
 
     let checkAttempt = 0;
-    console.log("move to", 3);
     // eslint-disable-next-line no-constant-condition
     while (true) {
       // wait until 'subscribe' catch the new task
@@ -317,16 +316,12 @@ export class Robot {
         throw new Error("task not caught by subscribe");
       }
     }
-    console.log("move to", 4);
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
       // wait until task is successfully done
-      console.log("move to", 4, 1);
       if (!this.task) {
-        console.log("move to", 4, 2, this.position, pos.pos);
         if (!Pos.equal(this.position, pos.pos)) {
-          console.log("move to", 4, 3);
           throw new Error("task is overridden");
         }
         break;
@@ -334,7 +329,6 @@ export class Robot {
         switch (this.task.t) {
           case "MoveToCoordinate": {
             if (!Pos.equal(this.task.to.pos, pos.pos)) {
-              console.log("move to", 4, 4);
               throw new Error("task is overridden");
             }
             break;
@@ -343,7 +337,6 @@ export class Robot {
       }
       await sleep(10);
     }
-    console.log("move to", 5);
   }
 
   /** Publish a position update. */
@@ -371,46 +364,35 @@ export class Robot {
 
   private async executeRequest(request: Events.WaterRequestedPayload) {
     const actyx = this.actyx;
-    console.log("robot:executeRequest", request.requestId);
     const machine = createMachineRunner(
       actyx,
       protocol.tagWithEntityId(request.requestId),
       RobotStates.Init,
       { robotId: this.id }
     );
-    machine.events.on("next", (e) => {
-      console.log("next", e.type);
-    });
 
     for await (const state of machine) {
-      console.log(1);
       // nothing is happening???
       const requested = state.as(RobotStates.WaterRequested);
       if (requested && !requested.payload.offered) {
-        console.log(2);
         await requested.commands()?.offer(this.position);
-        console.log(2, "after");
       }
 
       const accepted = state.as(RobotStates.HelpAccepted);
       if (accepted) {
-        console.log(3);
         // if someone else is accepted, exit from the loop
         if (accepted.payload.assignedRobotId !== this.id) {
-          console.log(3, "break");
           break;
         }
 
         // TODO: move and watering proximity logic
-        console.log(3, "before watering plant");
         await this.moveTo({ pos: accepted.payload.pos });
         await this.waterPlant({
           id: accepted.payload.robotId,
           pos: accepted.payload.pos,
         });
-        console.log("watering plant", accepted.payload);
+        await sleep(10000);
         await accepted.commands()?.markAsDone();
-        console.log("watering plant", "done");
         break;
       }
     }

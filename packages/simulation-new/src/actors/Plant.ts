@@ -68,7 +68,6 @@ export class Plant {
     while (true) {
       await sleep(100);
       this.measureWater();
-      console.log("measure water", this.water);
       if (this.water > 0) {
         await PlantHappenings.publishWaterLevelUpdate(this.actyx, {
           id: this.id,
@@ -87,8 +86,6 @@ export class Plant {
         const requestId =
           (await Helper.plantNotDoneRequest(this.actyx, this.id))?.requestId ||
           v4();
-        console.log("start:performWateringProtocol");
-        console.log("plant:executeRequest", requestId);
         await performWateringProtocol(
           this.actyx,
           this.position,
@@ -107,7 +104,6 @@ export class Plant {
         query: PlantHappenings.TagPlantWatered,
       },
       (e) => {
-        console.log("watered", e.meta.lamport, this.initializationLamportTime);
         if (e.meta.lamport < this.initializationLamportTime) {
           return;
         }
