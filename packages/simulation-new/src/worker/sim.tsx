@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Actor, Robot, Sensor } from "../common/actors";
+import { Actor, Pos, Robot, Sensor } from "../common/actors";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
-import { PlantControl, RobotControl } from "../common/client";
 import { Actyx } from "@actyx/sdk";
 import {
   RobotHappenings,
@@ -125,12 +124,26 @@ export type SensorControlHandle = {
   control: PlantControl;
 };
 
+export type PlantControl = {
+  get: () => Promise<Sensor.Type>;
+  setWaterLevel: (value: number) => Promise<unknown>;
+};
+
 const makePlantControl = (plant: Sensor.Type): PlantControl => ({
   get: async () => plant,
   setWaterLevel: async (x) => {
     plant.water = x;
   },
 });
+
+export type RobotControl = {
+  get: () => Promise<Robot.Type>;
+  moveToCoord: (
+    pos: Pos.Type["pos"],
+    REFRESH_TIME?: number
+  ) => Promise<unknown>;
+  waterPlant: (plantId: string, REFRESH_TIME?: number) => Promise<unknown>;
+};
 
 const makeRobotControl = (robot: Robot.Type, actyx: Actyx): RobotControl => ({
   get: async () => robot,
