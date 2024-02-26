@@ -11,9 +11,12 @@ import { performWateringProtocol } from "../workshop/protocol/Plant";
 import { sleep } from "systemic-ts-utils/async-utils";
 import { Helper } from "../workshop/protocol/protocol";
 
+/** Water drain level, in units / second. */
+const WATER_DRAIN = 5
+
 export class Plant {
-  // TODO: move `Actyx` object here
-  private lastMeasure: number;
+  /** The time at which the last water measurement was made (in milliseconds since the UNIX epoch). */
+  private lastMeasurement: number;
 
   private constructor(
     private actyx: Actyx,
@@ -22,7 +25,7 @@ export class Plant {
     private position: { x: number; y: number },
     private initializationLamportTime: number
   ) {
-    this.lastMeasure = Date.now();
+    this.lastMeasurement = Date.now();
   }
 
   static async init(actyx: Actyx): Promise<Plant> {
@@ -158,14 +161,15 @@ export class Plant {
   }
 
   private measureWater(): number {
-    const currentMeasure = Date.now();
-    const elapsed = currentMeasure - this.lastMeasure;
+    const currentMeasurement = Date.now();
+    const elapsed = currentMeasurement - this.lastMeasurement;
+    const drainedWaterAmount = (elapsed / 1000) * WATER_DRAIN
+    const newWaterAmount = this.water - drainedWaterAmount
+    // rounds to 2 decimal places
+    const roundedWaterLevel = Math.round(newWaterAmount * 100) / 100
 
-    this.water = Math.max(
-      Math.round((this.water - elapsed / 500) * 100) / 100,
-      0
-    );
-    this.lastMeasure = currentMeasure;
+    this.water = Math.max(roundedWaterLevel, 0);
+    this.lastMeasurement = currentMeasurement;
 
     return this.water;
   }

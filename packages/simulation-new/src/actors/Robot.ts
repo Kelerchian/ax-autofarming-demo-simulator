@@ -13,7 +13,7 @@ import { Events, ProtocolName, protocol } from "../workshop/protocol/protocol";
 import { createMachineRunner } from "@actyx/machine-runner";
 import { States as RobotStates } from "../workshop/protocol/Robot.ts";
 
-const ROBOT_SPEED = 0.5; // unit / milliseconds
+const ROBOT_SPEED = 1; // unit / milliseconds
 
 export class Robot {
   private task: NRobot.Task.MoveToCoordinate | undefined;
@@ -22,7 +22,7 @@ export class Robot {
     private actyx: Actyx,
     private readonly id: string,
     private position: { x: number; y: number }
-  ) {}
+  ) { }
 
   /** Initialize a Robot, attempting to restore previous from the browser and Actyx if possible. */
   static async init(actyx: Actyx): Promise<Robot> {
