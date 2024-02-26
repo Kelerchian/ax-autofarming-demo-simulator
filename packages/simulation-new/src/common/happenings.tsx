@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/no-namespace */
 import { Actyx, Tags } from "@actyx/sdk";
-import { Id, Pos, Robot, Sensor } from "./actors";
+import { Id, Pos, Sensor } from "./actors";
 import * as z from "zod";
 import { Events, ProtocolName } from "../workshop/protocol/protocol";
 import { v4 } from "uuid";
@@ -120,7 +120,7 @@ export namespace RobotHappenings {
 
   // emissions
   export const publishNewMoveTask = (sdk: Actyx, pos: PosUpdate.Type) => {
-    sdk.publish(
+    return sdk.publish(
       TagRobot.and(TagRobotWithId(pos.id)).and(TagRobotNewMoveTask).apply(pos)
     );
   };

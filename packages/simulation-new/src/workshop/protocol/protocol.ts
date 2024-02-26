@@ -69,16 +69,15 @@ export namespace Helper {
           .filter((x): x is Events.WaterRequestedPayload => x !== null)
       );
 
-  export const plantOpenRequest = async (actyx: Actyx, plantId: string): Promise<Events.WaterRequestedPayload | undefined> => {
+  export const plantNotDoneRequest = async (actyx: Actyx, plantId: string): Promise<Events.WaterRequestedPayload | undefined> => {
     const query = `
     PRAGMA features := subQuery interpolation
 
     FROM '${ProtocolName}' ORDER DESC FILTER _.plantId = '${plantId}' & _.type = '${Events.WaterRequested.type}'
 
-    LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.HelpAccepted.type}' END ?? []
     LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
 
-    FILTER !IsDefined(accepted_events[0]) & !IsDefined(done_events[0])
+    FILTER !IsDefined(done_events[0])
     `.trim()
     console.log(query)
     return actyx.queryAql({ query })

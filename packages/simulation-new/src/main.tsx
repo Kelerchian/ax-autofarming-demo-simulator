@@ -22,8 +22,8 @@ const actyx = await Actyx.of(
 const robot = await Robot.init(actyx);
 const plant = await Plant.init(actyx);
 
-plant.runLoop(actyx);
 robot.runLoop(actyx);
+plant.runLoop();
 
 // We run simulator
 const simulator = Simulator(actyx);
