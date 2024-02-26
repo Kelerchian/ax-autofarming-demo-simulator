@@ -119,28 +119,11 @@ export namespace RobotHappenings {
   }
 
   // emissions
-  export const publishCreateRobotEvent = (sdk: Actyx, robot: Robot.Type) => {
-    const taggedEvent = WorldCreate.and(TagRobot)
-      .and(WorldCreateWithId(robot.id))
-      .and(TagRobotCreated)
-      .apply(Robot.make({ pos: robot.pos, id: robot.id }));
-
-    return sdk.publish(taggedEvent);
-  };
-
   export const publishNewMoveTask = (sdk: Actyx, pos: PosUpdate.Type) => {
     sdk.publish(
       TagRobot.and(TagRobotWithId(pos.id)).and(TagRobotNewMoveTask).apply(pos)
     );
   };
-
-  export const publishPosUpdate = (sdk: Actyx, posUpdate: PosUpdate.Type) =>
-    sdk.publish(
-      WorldUpdate.and(TagRobot)
-        .and(TagRobotWithId(posUpdate.id))
-        .and(TagRobotPosUpdate)
-        .apply(posUpdate)
-    );
 }
 
 export type WorldUpdatePayload = z.TypeOf<typeof WorldUpdatePayload>;

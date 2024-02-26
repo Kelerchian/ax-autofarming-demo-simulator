@@ -21,8 +21,9 @@ export class Plant {
 
     static async init(actyx: Actyx): Promise<Plant> {
         const id = Plant.initId();
-        const data = await Plant.retrieveFromActyx(id, actyx);
+        const data = await Plant.retrieveIdFromActyx(id, actyx);
         // If we were able to retrieve an existing plant, we now need to
+        // NOTE: we also need to get the requestId
         if (data) {
             return new Plant(
                 id,
@@ -34,7 +35,7 @@ export class Plant {
         const plant = new Plant(
             id,
             100,
-            { x: 100, y: 100 }
+            { x: 100, y: 100 } // TODO: make random
         )
         await actyx.publish(
             WorldCreate
@@ -77,7 +78,7 @@ export class Plant {
         return plantId
     }
 
-    private static async retrieveFromActyx(id: string, actyx: Actyx): Promise<Sensor.Type | undefined> {
+    private static async retrieveIdFromActyx(id: string, actyx: Actyx): Promise<Sensor.Type | undefined> {
         const actyxEvents = await actyx.queryAql({ query: `FROM ${WorldCreateWithId(id)} ` })
         const event = actyxEvents.filter((e): e is AqlEventMessage => e.type === "event").at(0)
         const parsed = Sensor.Type.safeParse(event?.payload)
@@ -96,7 +97,7 @@ export class Plant {
             `
         })
         const event = actyxEvents.filter((e): e is AqlEventMessage => e.type === "event").at(0)
-        return event?.payload as number // should be save due to the kind of query
+        return event?.payload as number // should be safe due to the kind of query
     }
 
     private measureWater(): number {

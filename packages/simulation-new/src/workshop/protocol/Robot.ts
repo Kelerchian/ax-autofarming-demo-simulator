@@ -8,7 +8,7 @@ import { createMachineRunner } from "@actyx/machine-runner";
 const machine = protocol.makeMachine("robot");
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
-namespace States {
+export namespace States {
   export const Init = machine
     .designState("Init")
     .withPayload<{ selfId: string }>()
@@ -74,6 +74,7 @@ namespace States {
 
   HelpAccepted.react([Events.WateringDone], WateringDone, () => ({}));
 }
+
 export const main = async (
   actyx: Actyx,
   selfId: () => string,

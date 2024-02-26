@@ -74,7 +74,6 @@ export const performWateringProtocol = async (actyx: Actyx, pos: { x: number, y:
   ).refineStateType(States.All);
 
   let localBiddingTimeout: null | number = null;
-
   for await (const state of machine) {
     await state.as(States.Init, (state) => state.commands()?.request());
 
