@@ -9,6 +9,10 @@
     - `npm i`
     - `npm run start`
 
-# Theh simulator
+# The simulator
 
 The simulation simulates automated-farming actors i.e. watering robot and water pumps.
+
+# TODO
+
+- [ ] Find a timing for the water drain rate vs the bidding process since the plant is a bit too fast at dying 😅

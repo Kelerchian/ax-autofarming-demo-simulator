@@ -13,11 +13,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/uuid": "^9.0.8",
     "classnames": "^2.5.1",
     "effect": "^2.2.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "systemic-ts-utils": "^0.2.5",
+    "uuid": "^9.0.1",
     "vaettir-react": "^0.1.7",
     "zod": "^3.22.4"
   },

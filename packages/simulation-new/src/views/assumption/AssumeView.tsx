@@ -14,10 +14,7 @@ import {
 } from "../../worker/sim";
 import React from "react";
 import { Box } from "../common";
-import {
-  WINDOW_X_CENTER,
-  WINDOW_Y_CENTER,
-} from "../../common/window";
+import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "../../common/window";
 
 export const AssumeView = React.memo(() => {
   const [selecting, setSelecting] = useState(false);
@@ -195,7 +192,7 @@ export const AssumeControlSensor = ({
             role="button"
             onClick={() => setMode(AssumeControlSensorMode.SetWaterLevel)}
           >
-            Set Water Level (current: {control.actor.data.water}) %
+            Set Water Level (current: {control.actor.water}) %
           </Box>
         </>
       )}

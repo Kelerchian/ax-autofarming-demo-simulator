@@ -1,26 +1,21 @@
-import {
-  Actor,
-  Pos,
-  Robot,
-  Sensor,
-  WaterPump,
-} from "../common/actors";
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { Actor, Pos, Robot, Sensor } from "../common/actors";
 import { Vaettir, VaettirReact } from "vaettir-react";
 import { BoolLock } from "systemic-ts-utils/lock";
-import { sleep } from "systemic-ts-utils/async-utils";
+import { Actyx } from "@actyx/sdk";
 import {
-  PlantControl,
-  RobotControl,
-  TaskOverridenError,
-} from "../common/client";
-
-export const GLOBAL_DELTA = Math.round(1000 / 30);
+  RobotHappenings,
+  WorldCreate,
+  WorldUpdate,
+  WorldUpdatePayload,
+} from "../common/happenings";
 
 export const SimulatorCtx = VaettirReact.Context.make<Simulator>();
 
 export type Simulator = ReturnType<typeof Simulator>;
-export const Simulator = () =>
+export const Simulator = (actyx: Actyx) =>
   Vaettir.build()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     .api(({ isDestroyed, channels }) => {
       const data = {
         sims: new Map<string, ActorSim>(),
@@ -30,174 +25,132 @@ export const Simulator = () =>
 
       const init = () =>
         data.lock.use(async () => {
-          while (!isDestroyed()) {
-            for (const actor of data.sims.values()) {
-              actor.api.step(GLOBAL_DELTA);
+          // Returns cancel handle
+          actyx.subscribe({ query: WorldCreate }, (actyxEvent) => {
+            const entity = Actor.Type.safeParse(actyxEvent.payload);
+            if (entity.success) {
+              const sim = ActorSim(entity.data, actyx);
+              data.sims.set(entity.data.id, sim);
+              channels.change.emit();
             }
-            await sleep(GLOBAL_DELTA);
-          }
+          });
+
+          // Returns cancel handle
+          actyx.subscribe({ query: WorldUpdate }, (actyxEvent) => {
+            const idPayload = WorldUpdatePayload.safeParse(actyxEvent.payload);
+            if (!idPayload.success) return;
+            data.sims.get(idPayload.data.id)?.api.feed(idPayload.data);
+          });
         });
 
-      const actorsMap = (): ReadonlyMap<string, ActorSim> => data.sims;
-
-      const legacyActorsMap = (): Actor.ReadonlyActorsMap =>
-        data.legacyActorMap;
-
-      const add = <T extends Actor.Type>(actor: T): ControlHandleOf<T> => {
-        const sim = ActorSim(() => data.legacyActorMap, actor);
-        data.sims.set(actor.id, sim);
-        data.legacyActorMap.set(actor.id, actor);
-        channels.change.emit();
-        return sim.api.controlHandle() as ControlHandleOf<T>;
-      };
+      const getActorById = (id: string): ActorSim | undefined =>
+        data.sims.get(id);
 
       const actors = (): ActorSim[] => Array.from(data.sims.values());
 
-      return {
-        legacyActorsMap,
-        actorsMap,
-        actors,
-        add,
-        init,
-      };
+      return { init, actors, getActorById };
     })
     .finish();
 
 export type ActorSim = ReturnType<typeof ActorSim>;
-export const ActorSim = (
-  otherActors: () => Actor.ReadonlyActorsMap,
-  actor: Actor.Type
-) =>
+export const ActorSim = (actor: Actor.Type, actyx: Actyx) =>
   Vaettir.build()
-    .api(({ channels }) => {
-      const data = { actor };
-
-      const step: (delta: number) => unknown = (() => {
-        if (actor.t === "Sensor") {
-          return (delta: number) => {
-            Sensor.Step.step(actor, delta);
-            channels.change.emit();
-          };
+    .api(({ channels, onDestroy }) => {
+      const feed: (eventPayload: WorldUpdatePayload) => void = (() => {
+        switch (actor.t) {
+          case "Robot":
+            return (eventPayload: WorldUpdatePayload) => {
+              const positionEvent =
+                RobotHappenings.PosUpdate.Type.safeParse(eventPayload);
+              if (positionEvent.success) {
+                actor.pos = positionEvent.data.pos;
+                channels.change.emit();
+              }
+            };
+          case "Sensor":
+            return (eventPayload: WorldUpdatePayload) => {
+              const wateredEvent =
+                RobotHappenings.WateredEvent.Type.safeParse(eventPayload);
+              if (wateredEvent.success) {
+                actor.water = wateredEvent.data.water;
+                channels.change.emit();
+              }
+            };
         }
-        if (actor.t === "Robot") {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          return (_: number) => {
-            Robot.Step.step(actor);
-            channels.change.emit();
-          };
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        return (_: number) => {};
       })();
 
+      // TODO: keep for the UI
       const controlHandle = (): ControlHandle => {
-        const actor = data.actor;
-        if (actor.t === "Sensor") {
-          return {
-            actor,
-            control: makePlantControl(actor),
-          };
+        switch (actor.t) {
+          case "Robot":
+            return {
+              actor,
+              control: makeRobotControl(actor, actyx),
+              type: "RobotControlHandle",
+            };
+          case "Sensor":
+            return {
+              actor,
+              control: makePlantControl(actor),
+              type: "SensorControlHandle",
+            };
         }
-        if (actor.t === "Robot") {
-          return {
-            actor,
-            control: makeRobotControl(otherActors, actor),
-          };
-        }
-        return {
-          actor,
-          control: null,
-        };
       };
 
       return Object.freeze({
-        id: data.actor.id,
-        t: data.actor.t,
-        actor: () => data.actor as Readonly<Actor.Type>,
+        feed: feed,
+        id: actor.id,
+        t: actor.t,
+        actor: () => actor as Readonly<Actor.Type>,
         controlHandle,
-        step,
       });
     })
     .finish();
 
-export type ControlHandle =
-  | SensorControlHandle
-  | RobotControlHandle
-  | WaterPumpControlHandle;
+export type ControlHandle = SensorControlHandle | RobotControlHandle;
 
 export type ControlHandleOf<T extends Actor.Type> = T extends Robot.Type
   ? RobotControlHandle
-  : T extends Sensor.Type
-  ? SensorControlHandle
-  : WaterPumpControlHandle;
+  : SensorControlHandle;
 
 export type RobotControlHandle = {
+  type: "RobotControlHandle";
   actor: Robot.Type;
   control: RobotControl;
 };
 export type SensorControlHandle = {
+  type: "SensorControlHandle";
   actor: Sensor.Type;
   control: PlantControl;
 };
-export type WaterPumpControlHandle = {
-  actor: WaterPump.Type;
-  control: null;
+
+export type PlantControl = {
+  get: () => Promise<Sensor.Type>;
+  setWaterLevel: (value: number) => Promise<unknown>;
 };
 
 const makePlantControl = (plant: Sensor.Type): PlantControl => ({
   get: async () => plant,
   setWaterLevel: async (x) => {
-    plant.data.water = x;
+    plant.water = x;
   },
 });
 
-const makeRobotControl = (
-  actors: () => Actor.ReadonlyActorsMap,
-  robot: Robot.Type
-): RobotControl => ({
+export type RobotControl = {
+  get: () => Promise<Robot.Type>;
+  moveToCoord: (
+    pos: Pos.Type["pos"],
+    REFRESH_TIME?: number
+  ) => Promise<unknown>;
+  waterPlant: (plantId: string, REFRESH_TIME?: number) => Promise<unknown>;
+};
+
+const makeRobotControl = (robot: Robot.Type, actyx: Actyx): RobotControl => ({
   get: async () => robot,
-  moveToCoord: async (pos, REFRESH_TIME) => {
-    Robot.Actions.apply(actors(), robot, {
-      t: "MoveToCoordinate",
-      to: { pos },
-    });
-    const currentTask = robot.data.task;
-    if (!currentTask) return;
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (robot.data.task === null && Pos.equal(robot.pos, pos)) {
-        if (Pos.equal(robot.pos, pos)) {
-          return;
-        } else {
-          throw TaskOverridenError;
-        }
-      }
-
-      if (robot.data.task !== null && robot.data.task !== currentTask) {
-        throw TaskOverridenError;
-      }
-
-      await sleep(Math.max(REFRESH_TIME || GLOBAL_DELTA, GLOBAL_DELTA));
-    }
+  moveToCoord: async (pos) => {
+    RobotHappenings.publishNewMoveTask(actyx, { id: robot.id, pos });
   },
   waterPlant: async (plantId: string, REFRESH_TIME?: number) => {
-    Robot.Actions.apply(actors(), robot, {
-      t: "WaterPlant",
-      sensorId: plantId,
-    });
-    const currentTask = robot.data.task;
-    if (!currentTask) return;
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (robot.data.task === null) return;
-
-      if (robot.data.task !== null && robot.data.task !== currentTask) {
-        throw TaskOverridenError;
-      }
-      await sleep(Math.max(REFRESH_TIME || GLOBAL_DELTA, GLOBAL_DELTA));
-    }
+    return;
   },
 });

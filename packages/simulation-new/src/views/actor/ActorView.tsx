@@ -11,6 +11,7 @@ import {
   WINDOW_Y_CENTER,
   WINDOW_Y_SIZE,
 } from "../../common/window";
+import { VaettirReact } from "vaettir-react";
 
 export const VisualizerFrame = (
   props: React.DetailedHTMLProps<
@@ -36,6 +37,7 @@ export const ActorViewDimension = 0;
 export const ActorView = ({ sim }: { sim: ActorSim }) => {
   const selector = SelectorCtx.borrow();
   const actor = sim.api.actor();
+  VaettirReact.useObs(sim.channels.change);
   const assumer = ActorAssumerCtx.borrowListen();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const hoverAgent = useMemo(selector.api.createHoverAgent, []);
@@ -92,33 +94,23 @@ export const ActorLogo = ({ actor }: { actor: Actor.Type }) => {
       return "🥀";
     }
   }
-  if (actor.t === "WaterPump") {
-    return "🚰";
-  }
 };
 
 const actorTip = (actor: Actor.Type) =>
   [
+    `id: ${actor.id}`,
     `type: ${actor.t}`,
     `coord: ${Math.round(actor.pos.x * 100) / 100}, ${
       Math.round(actor.pos.y * 100) / 100
     }`,
-    robotTaskTip(actor),
     plantWaterLevelTip(actor),
   ]
     .filter((x) => !!x)
     .join("\n");
 
-const robotTaskTip = (actor: Actor.Type) => {
-  if (actor?.t !== "Robot" || actor.data.task == null) {
-    return undefined;
-  }
-  return `task: ${actor.data.task.t}`;
-};
-
 const plantWaterLevelTip = (actor: Actor.Type) => {
   if (actor?.t !== "Sensor") {
     return undefined;
   }
-  return `water: ${Math.round(actor.data.water)}%`;
+  return `water: ${Math.round(actor.water)}%`;
 };

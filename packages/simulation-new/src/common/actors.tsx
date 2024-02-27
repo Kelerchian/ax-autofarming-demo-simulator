@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-namespace */
 import * as z from "zod";
 import { v4 as uuid } from "uuid";
 import { pipe } from "effect";
@@ -76,82 +77,6 @@ export namespace Robot {
 
     export type Actions = z.TypeOf<typeof Actions>;
     export const Actions = z.union([MoveToCoordinate, WaterPlant]);
-
-    export const apply = (
-      actors: Actor.ReadonlyActorsMap,
-      robot: Type,
-      action: Actions
-    ) => {
-      robot.data.task = (() => {
-        if (action.t === "MoveToCoordinate") {
-          return {
-            t: "MoveToCoordinate",
-            start: Date.now(),
-            from: { pos: robot.pos },
-            to: action.to,
-          };
-        }
-        if (action.t === "WaterPlant") {
-          const sensor = actors.get(action.sensorId);
-          if (sensor?.t === "Sensor") {
-            const distance = Pos.distance(robot.pos, sensor.pos);
-            if (Sensor.WaterLevel.withinWateringProximity(distance)) {
-              return {
-                t: "WaterPlant",
-                start: Date.now(),
-                sensor,
-              };
-            }
-          }
-        }
-        return null;
-      })();
-    };
-  }
-
-  export namespace Step {
-    const ROBOT_SPEED = 0.5; // unit / milliseconds
-    const WATERING_DURATION = 3000; // milliseconds
-
-    export const step = (robot: Type) => {
-      const task = robot.data.task;
-      if (task?.t === "MoveToCoordinate") {
-        return moveToCoord(robot, task);
-      }
-      if (task?.t === "WaterPlant") {
-        return waterPlant(robot, task);
-      }
-    };
-
-    const moveToCoord = (robot: Type, task: Task.MoveToCoordinate) => {
-      const { from, to, start } = task;
-      const deltaX = to.pos.x - from.pos.x;
-      const deltaY = to.pos.y - from.pos.y;
-      const totalDist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      const currentDist = (Date.now() - start) * ROBOT_SPEED;
-
-      // hasn't reached destination
-      if (currentDist < totalDist) {
-        robot.pos = pipe(Math.atan2(deltaY, deltaX), (angle) => ({
-          x: from.pos.x + currentDist * Math.cos(angle),
-          y: from.pos.y + currentDist * Math.sin(angle),
-        }));
-        return;
-      }
-
-      // robot reached destination
-      robot.pos = { ...to.pos };
-      robot.data.task = null;
-    };
-
-    const waterPlant = (robot: Type, task: Task.WaterPlant) => {
-      const sensor = task.sensor;
-      if (Date.now() < task.start + WATERING_DURATION) {
-        return;
-      }
-      Sensor.WaterLevel.applyWater(sensor);
-      robot.data.task = null;
-    };
   }
 
   export namespace Task {
@@ -180,19 +105,13 @@ export namespace Robot {
   export const Type = ActorBase.and(
     z.object({
       t: z.literal("Robot"),
-      data: z.object({
-        task: z.null().or(Task.Type),
-      }),
     })
   );
 
-  export const make = ({ pos, id }: { pos: Pos.Type; id?: string }): Type => ({
+  export const make = ({ pos, id }: Pos.Type & { id?: string }): Type => ({
     t: "Robot",
-    data: {
-      task: null,
-    },
     ...Id.make(id),
-    ...pos,
+    pos,
   });
 }
 
@@ -202,33 +121,23 @@ export namespace Sensor {
   export const Type = ActorBase.and(
     z.object({
       t: z.literal("Sensor"),
-      data: z.object({
-        // 100-150 - overwatered
-        // 40-100 - ideal
-        // 0-40 -  underwatered
-        water: z.number(),
-
-        /**
-         * water level drop per millisecond
-         */
-        decay: z.number(),
-      }),
+      // 100-150 - overwatered
+      // 40-100 - ideal
+      // 0-40 -  underwatered
+      water: z.number(),
     })
   );
   export type Type = z.TypeOf<typeof Type>;
   export const make = ({
     pos,
-    decay,
     id,
-  }: {
-    pos: Pos.Type;
-    decay?: number;
+  }: Pos.Type & {
     id?: string;
   }): Type => ({
     t: "Sensor",
-    ...pos,
+    pos,
     ...Id.make(id),
-    data: { water: 100, decay: Math.max(0.002 || decay, 0.002) },
+    water: 100,
   });
 
   export namespace Actions {
@@ -254,16 +163,7 @@ export namespace Sensor {
       robot: Type,
       action: Actions
     ) => {
-      robot.data.water = action.value;
-    };
-  }
-
-  export namespace Step {
-    export const step = (plant: Sensor.Type, deltaMs: number) => {
-      plant.data.water = Math.max(
-        plant.data.water - deltaMs * plant.data.decay,
-        0
-      );
+      robot.water = action.value;
     };
   }
 
@@ -271,41 +171,31 @@ export namespace Sensor {
     export const withinWateringProximity = (dist: number) =>
       dist < WaterMinimumProximity;
 
-    export const isUnderwatered = (plant: Type) => plant.data.water < 40;
+    export const isUnderwatered = (plant: Type) => plant.water < 40;
     export const isNormal = (plant: Type) =>
-      plant.data.water >= 40 && plant.data.water <= 100;
-    export const isOverwatered = (plant: Type) => plant.data.water > 100;
+      plant.water >= 40 && plant.water <= 100;
+    export const isOverwatered = (plant: Type) => plant.water > 100;
 
     export const applyWater = (plant: Type) => {
       if (isUnderwatered(plant)) {
-        plant.data.water = 100;
+        plant.water = 100;
         return;
       }
       if (isNormal(plant)) {
-        plant.data.water = 120;
+        plant.water = 120;
         return;
       }
       if (isOverwatered(plant)) {
-        plant.data.water = Math.min(plant.data.water + 20, 100);
+        plant.water = Math.min(plant.water + 20, 100);
         return;
       }
     };
   }
 }
 
-export namespace WaterPump {
-  export const Type = ActorBase.and(z.object({ t: z.literal("WaterPump") }));
-  export type Type = z.TypeOf<typeof Type>;
-  export const make = ({ pos, id }: { pos: Pos.Type; id?: string }): Type => ({
-    t: "WaterPump",
-    ...Id.make(id),
-    ...pos,
-  });
-}
-
 export namespace Actor {
   export type Type = z.TypeOf<typeof Type>;
-  export const Type = z.union([Robot.Type, Sensor.Type, WaterPump.Type]);
+  export const Type = z.union([Robot.Type, Sensor.Type]);
 
   export type ActorsMap = Map<string, Type>;
   export type ReadonlyActorsMap = ReadonlyMap<string, Type>;
