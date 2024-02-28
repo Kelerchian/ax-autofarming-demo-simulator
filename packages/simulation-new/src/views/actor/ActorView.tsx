@@ -1,7 +1,7 @@
 import { ActorSim } from "../../worker/sim";
 import cls from "classnames";
 import * as styles from "./ActorView.module.scss";
-import { Actor, Sensor } from "../../common/actors";
+import { ActorData, PlantData } from "../../common/actors";
 import { SelectorCtx } from "../../worker/selector";
 import React, { useEffect, useMemo } from "react";
 import { ActorAssumerCtx } from "../../worker/assume";
@@ -77,14 +77,14 @@ export const ActorView = ({ sim }: { sim: ActorSim }) => {
   );
 };
 
-export const ActorLogo = ({ actor }: { actor: Actor.Type }) => {
+export const ActorLogo = ({ actor }: { actor: ActorData.Type }) => {
   if (actor.t === "Robot") {
     return "🤖";
   }
-  if (actor.t === "Sensor") {
-    if (Sensor.WaterLevel.isNormal(actor)) {
+  if (actor.t === "Plant") {
+    if (PlantData.WaterLevel.isNormal(actor)) {
       return "🌹";
-    } else if (Sensor.WaterLevel.isUnderwatered(actor)) {
+    } else if (PlantData.WaterLevel.isUnderwatered(actor)) {
       return (
         <span style={{ filter: "saturate(0.3) sepia(0.9) saturate(2)" }}>
           🥀
@@ -96,7 +96,7 @@ export const ActorLogo = ({ actor }: { actor: Actor.Type }) => {
   }
 };
 
-const actorTip = (actor: Actor.Type) =>
+const actorTip = (actor: ActorData.Type) =>
   [
     `id: ${actor.id}`,
     `type: ${actor.t}`,
@@ -108,8 +108,8 @@ const actorTip = (actor: Actor.Type) =>
     .filter((x) => !!x)
     .join("\n");
 
-const plantWaterLevelTip = (actor: Actor.Type) => {
-  if (actor?.t !== "Sensor") {
+const plantWaterLevelTip = (actor: ActorData.Type) => {
+  if (actor?.t !== "Plant") {
     return undefined;
   }
   return `water: ${Math.round(actor.water)}%`;

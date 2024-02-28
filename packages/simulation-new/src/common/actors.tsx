@@ -16,7 +16,7 @@ export namespace Pos {
 
   export const make = (pos: Type["pos"]): Type => ({ pos });
 
-  export const makeRandom = (inputRadius?: number): Type =>
+  export const makeRandom = (maxDeviation?: number): Type =>
     pipe(
       {
         angle: pipe(
@@ -24,8 +24,8 @@ export namespace Pos {
           (degreeRad) => Math.round(degreeRad * 1000) / 1000
         ),
         radius: pipe(
-          inputRadius !== undefined
-            ? inputRadius
+          maxDeviation !== undefined
+            ? Math.round(Math.random() * maxDeviation)
             : Math.round(Math.random() * RANDOM_MAXIMUM_DEVIATION),
           (r) => Math.max(r, RANDOM_MINIMUM_DEVIATION)
         ), // normalize
@@ -57,20 +57,31 @@ export namespace Id {
 /// Actors
 /// ===================
 
-const ActorBase = z.object({}).and(Pos.Type).and(Id.Type);
+export const ActorBase = z.object({}).and(Pos.Type).and(Id.Type);
+export type ActorBase = z.TypeOf<typeof ActorBase>;
 
-export namespace Robot {
+export namespace RobotData {
+  export namespace PosUpdate {
+    export type Type = z.TypeOf<typeof Type>;
+    export const Type = Id.Type.and(Pos.Type);
+  }
+
   export namespace Actions {
     export type MoveToCoordinate = z.TypeOf<typeof MoveToCoordinate>;
     export const MoveToCoordinate = z.object({
       t: z.literal("MoveToCoordinate"),
+      id: z.string(),
       to: Pos.Type,
     });
+    export const moveToCoordinate = (params: {
+      id: string;
+      to: Pos.Type;
+    }): MoveToCoordinate => ({ t: "MoveToCoordinate", ...params });
 
     export type WaterPlant = z.TypeOf<typeof WaterPlant>;
     export const WaterPlant = z.object({
       t: z.literal("WaterPlant"),
-      sensorId: z.string(),
+      plantId: z.string(),
     });
 
     export const Cancel = z.null();
@@ -93,7 +104,7 @@ export namespace Robot {
       z.object({
         t: z.literal("WaterPlant"),
         start: z.number(),
-        sensor: Sensor.Type,
+        plant: PlantData.Type,
       })
     );
 
@@ -108,19 +119,22 @@ export namespace Robot {
     })
   );
 
-  export const make = ({ pos, id }: Pos.Type & { id?: string }): Type => ({
-    t: "Robot",
-    ...Id.make(id),
+  export const make = ({
     pos,
+    id,
+  }: Partial<ActorBase & { id: string }>): Type => ({
+    t: "Robot",
+    pos: pos || Pos.makeRandom().pos,
+    id: id || Id.make().id,
   });
 }
 
-export namespace Sensor {
+export namespace PlantData {
   export const WaterMinimumProximity = 50;
 
   export const Type = ActorBase.and(
     z.object({
-      t: z.literal("Sensor"),
+      t: z.literal("Plant"),
       // 100-150 - overwatered
       // 40-100 - ideal
       // 0-40 -  underwatered
@@ -131,50 +145,58 @@ export namespace Sensor {
   export const make = ({
     pos,
     id,
-  }: Pos.Type & {
-    id?: string;
-  }): Type => ({
-    t: "Sensor",
-    pos,
-    ...Id.make(id),
-    water: 100,
+    water,
+  }: Partial<ActorBase & { water: number }>): Type => ({
+    t: "Plant",
+    pos: pos || Pos.makeRandom().pos,
+    id: id || Id.make().id,
+    water: water || 100,
   });
 
-  export namespace Actions {
-    export type SetWaterLevel = z.TypeOf<typeof SetWaterLevel>;
-    export const SetWaterLevel = z.object({
-      t: z.literal("SetWaterLevel"),
-      value: z.number(),
-    });
+  // export namespace Actions {
+  //   export type SetWaterLevel = z.TypeOf<typeof SetWaterLevel>;
+  //   export const SetWaterLevel = z.object({
+  //     t: z.literal("SetWaterLevel"),
+  //     value: z.number(),
+  //   });
 
-    export type WaterPlant = z.TypeOf<typeof WaterPlant>;
-    export const WaterPlant = z.object({
-      t: z.literal("WaterPlant"),
-      sensorId: z.string(),
-    });
+  //   export type WaterPlant = z.TypeOf<typeof WaterPlant>;
+  //   export const WaterPlant = z.object({
+  //     t: z.literal("WaterPlant"),
+  //     plantId: z.string(),
+  //   });
 
-    export const Cancel = z.null();
+  //   export const Cancel = z.null();
 
-    export type Actions = z.TypeOf<typeof Actions>;
-    export const Actions = SetWaterLevel;
+  //   export type Actions = z.TypeOf<typeof Actions>;
+  //   export const Actions = SetWaterLevel;
 
-    export const apply = (
-      _: Actor.ReadonlyActorsMap,
-      robot: Type,
-      action: Actions
-    ) => {
-      robot.water = action.value;
-    };
+  //   export const apply = (
+  //     _: ActorData.ReadonlyActorsMap,
+  //     robot: Type,
+  //     action: Actions
+  //   ) => {
+  //     robot.water = action.value;
+  //   };
+  // }
+
+  export namespace Watered {
+    export type Type = z.TypeOf<typeof Type>;
+    export const Type = Id.Type.and(Pos.Type);
   }
 
   export namespace WaterLevel {
-    export const withinWateringProximity = (dist: number) =>
-      dist < WaterMinimumProximity;
+    export type Type = z.TypeOf<typeof Type>;
+    export const Type = Id.Type.and(z.object({ water: z.number() }));
 
-    export const isUnderwatered = (plant: Type) => plant.water < 40;
+    export const Underwatered = 40;
+    export const OverwateredThreshold = 100;
+
     export const isNormal = (plant: Type) =>
-      plant.water >= 40 && plant.water <= 100;
-    export const isOverwatered = (plant: Type) => plant.water > 100;
+      plant.water >= Underwatered && plant.water <= OverwateredThreshold;
+    export const isUnderwatered = (plant: Type) => plant.water < Underwatered;
+    export const isOverwatered = (plant: Type) =>
+      plant.water > OverwateredThreshold;
 
     export const applyWater = (plant: Type) => {
       if (isUnderwatered(plant)) {
@@ -193,9 +215,9 @@ export namespace Sensor {
   }
 }
 
-export namespace Actor {
+export namespace ActorData {
   export type Type = z.TypeOf<typeof Type>;
-  export const Type = z.union([Robot.Type, Sensor.Type]);
+  export const Type = z.union([RobotData.Type, PlantData.Type]);
 
   export type ActorsMap = Map<string, Type>;
   export type ReadonlyActorsMap = ReadonlyMap<string, Type>;
@@ -206,6 +228,6 @@ export namespace Actor {
   export type Actions = z.TypeOf<typeof Actions>;
   export const Actions = z.object({
     id: z.string(),
-    action: z.union([Robot.Actions.Actions, Sensor.Actions.Actions]),
+    action: RobotData.Actions.Actions,
   });
 }

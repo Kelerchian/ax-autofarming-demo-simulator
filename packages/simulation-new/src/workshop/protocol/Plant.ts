@@ -81,49 +81,34 @@ export const performWateringProtocol = async (
     { requestId, pos, plantId }
   ).refineStateType(States.All);
 
-  machine.events.on("next", (e) => {
-    console.log("performWateringProtocol:next", e.type);
-  });
-
   let localBiddingTimeout: null | number = null;
   for await (const state of machine) {
-    console.log("performWateringProtocol", 1);
     await state.as(States.Init, (state) => state.commands()?.request());
-    console.log("performWateringProtocol", 2);
 
     await state.as(States.WaterRequested, async (requested) => {
-      console.log("performWateringProtocol", 3);
       const bestOffer = requested.payload.offers
         .sort((a, b) => Pos.distance(a.pos, pos) - Pos.distance(b.pos, pos))
         .at(0);
 
-      console.log("performWateringProtocol", 4);
       if (!bestOffer) {
-        console.log("performWateringProtocol", 5);
         // Wait until an offer has come (this state is expired)
         // eslint-disable-next-line no-constant-condition
         while (state.commandsAvailable()) {
-          console.log("performWateringProtocol", 6);
           await sleep(WAIT_OFFER_DELTA);
         }
-        console.log("performWateringProtocol", 6, "after");
         return;
       }
-      console.log("performWateringProtocol", 7);
 
       // If a best offer is found, set a local timeout
       // wait for 3000 milliseconds before choosing which offer is best
       localBiddingTimeout = localBiddingTimeout || Date.now() + 3000;
       const remainingWait = localBiddingTimeout - Date.now();
-      console.log("performWateringProtocol", 8);
       await sleep(remainingWait);
-      console.log("performWateringProtocol", 9);
       await requested.commands()?.accept(bestOffer.robot);
     });
 
     if (state.is(States.WateringDone)) {
       break;
     }
-    console.log("performWateringProtocol", "end");
   }
 };

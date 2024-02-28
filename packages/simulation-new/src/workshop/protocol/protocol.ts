@@ -12,7 +12,8 @@ export namespace Events {
   export type WaterRequestedPayload = z.TypeOf<
     typeof Events.WaterRequestedPayload
   >;
-  export const WaterRequestedPayload = Pos.Type.and(RequestIdPayload).and(PlantIdPayload);
+  export const WaterRequestedPayload =
+    Pos.Type.and(RequestIdPayload).and(PlantIdPayload);
   export const WaterRequested = MachineEvent.design("WaterRequested").withZod(
     WaterRequestedPayload
   );
@@ -40,12 +41,12 @@ export const protocol = SwarmProtocol.make("WateringRequest", Events.All);
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace Helper {
-
   export const openRequests = (
     actyx: Actyx
   ): Promise<Events.WaterRequestedPayload[]> =>
-    actyx.queryAql({
-      query: `
+    actyx
+      .queryAql({
+        query: `
       PRAGMA features := subQuery interpolation
 
       FROM '${ProtocolName}' ORDER DESC FILTER _.type = '${Events.WaterRequested.type}'
@@ -55,7 +56,7 @@ export namespace Helper {
 
       FILTER !IsDefined(accepted_events[0]) & !IsDefined(done_events[0])
       `.trim(),
-    })
+      })
       .then((events): Events.WaterRequestedPayload[] =>
         events
           .filter((event): event is AqlEventMessage => event.type === "event")
@@ -69,7 +70,10 @@ export namespace Helper {
           .filter((x): x is Events.WaterRequestedPayload => x !== null)
       );
 
-  export const plantNotDoneRequest = async (actyx: Actyx, plantId: string): Promise<Events.WaterRequestedPayload | undefined> => {
+  export const plantNotDoneRequest = async (
+    actyx: Actyx,
+    plantId: string
+  ): Promise<Events.WaterRequestedPayload | undefined> => {
     const query = `
     PRAGMA features := subQuery interpolation
 
@@ -78,13 +82,19 @@ export namespace Helper {
     LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
 
     FILTER !IsDefined(done_events[0])
-    `.trim()
-    console.log(query)
-    return actyx.queryAql({ query })
+    `.trim();
+    return actyx
+      .queryAql({ query })
       .then((aqlMessages): Events.WaterRequestedPayload | undefined => {
-        const events = aqlMessages.filter((event): event is AqlEventMessage => event.type === "event");
-        if (events.length === 0) { return undefined }
-        if (events.length > 1) { console.log("something is probably wrong") }
+        const events = aqlMessages.filter(
+          (event): event is AqlEventMessage => event.type === "event"
+        );
+        if (events.length === 0) {
+          return undefined;
+        }
+        if (events.length > 1) {
+          console.log("something is probably wrong");
+        }
         return events
           .map((event) => {
             const parsed = Events.WaterRequestedPayload.safeParse(
@@ -93,9 +103,9 @@ export namespace Helper {
             if (parsed.success) return parsed.data;
             return null;
           })
-          .filter((x): x is Events.WaterRequestedPayload => x !== null)[0]
+          .filter((x): x is Events.WaterRequestedPayload => x !== null)[0];
       });
-  }
+  };
 }
 
 export const manifest: AppManifest = {

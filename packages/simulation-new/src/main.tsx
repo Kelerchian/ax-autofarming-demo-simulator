@@ -13,16 +13,13 @@ const actyx = await Actyx.of(
     displayName: "Workshop Demo",
     version: "1.0.0",
   },
-  {
-    actyxHost: "127.0.0.1",
-    actyxPort: 4454,
-  }
+  { actyxHost: "127.0.0.1", actyxPort: 4454 }
 );
 
 const robot = await Robot.init(actyx);
 const plant = await Plant.init(actyx);
 
-robot.runLoop(actyx);
+robot.runLoop();
 plant.runLoop();
 
 // We run simulator

@@ -30,6 +30,7 @@ export namespace States {
   export const HelpAccepted = machine
     .designState("HelpAccepted")
     .withPayload<{
+      plantId: string;
       robotId: string;
       pos: { x: number; y: number };
       assignedRobotId: string;
