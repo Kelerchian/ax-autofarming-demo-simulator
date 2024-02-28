@@ -6,6 +6,7 @@ import { Simulator } from "./worker/sim.tsx";
 import { Actyx } from "@actyx/sdk";
 import { Robot } from "./actors/Robot.ts";
 import { Plant } from "./actors/Plant.ts";
+import { performWateringRequest } from "./workshop/protocol/Plant.ts";
 
 const actyx = await Actyx.of(
   {
@@ -23,7 +24,7 @@ const skipPlant =
 
 await Promise.all([
   !skipRobot && (await Robot.init(actyx)).runLoop(),
-  !skipPlant && (await Plant.init(actyx)).runLoop(),
+  !skipPlant && (await Plant.init(actyx, performWateringRequest)).runLoop(),
 ]);
 
 // We run simulator

@@ -2,9 +2,7 @@ import { Actyx } from "@actyx/sdk";
 import { PlantHappenings } from "../common/happenings";
 import { PlantData } from "../common/actors";
 import { v4 } from "uuid";
-import { performWateringProtocol } from "../workshop/protocol/Plant";
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Helper } from "../workshop/protocol/protocol";
 
 /** Water drain level, in units / second. */
 const WATER_DRAIN = 5;
@@ -16,7 +14,8 @@ export class Plant {
   private constructor(
     private actyx: Actyx,
     private data: PlantData.Type,
-    private initializationLamportTime: number
+    private initializationLamportTime: number,
+    private waterRequest: (actyx: Actyx, data: PlantData.Type) => Promise<void>
   ) {
     this.lastMeasurement = Date.now();
   }
@@ -30,7 +29,7 @@ export class Plant {
     return plantId;
   }
 
-  static async init(actyx: Actyx): Promise<Plant> {
+  static async init(actyx: Actyx, waterRequest: (actyx: Actyx, data: PlantData.Type) => Promise<void>): Promise<Plant> {
     const id = Plant.initId();
     const data = await PlantHappenings.retrieveById(actyx, id);
     if (data) {
@@ -44,7 +43,8 @@ export class Plant {
       return new Plant(
         actyx,
         PlantData.make({ id, water, pos }),
-        latestWaterEvent?.lamport || data.lamport
+        latestWaterEvent?.lamport || data.lamport,
+        waterRequest
       );
     }
     const x = Math.round(Math.random() * 400) - 200;
@@ -58,7 +58,8 @@ export class Plant {
           y: Math.round(Math.random() * 100) + 100,
         },
       }),
-      0
+      0,
+      waterRequest
     );
 
     await PlantHappenings.publishPlantCreated(actyx, plant.getData());
@@ -78,22 +79,7 @@ export class Plant {
   }
 
   async runWateringRequestLoop() {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      // sleep to avoid spamming
-      await sleep(50);
-      if (this.data.water < 50) {
-        const requestId =
-          (await Helper.plantNotDoneRequest(this.actyx, this.data.id))
-            ?.requestId || v4();
-        await performWateringProtocol(
-          this.actyx,
-          this.data.pos,
-          requestId,
-          this.data.id
-        );
-      }
-    }
+    await this.waterRequest(this.actyx, this.data)
   }
 
   async runLoop() {

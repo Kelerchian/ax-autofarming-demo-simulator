@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Events, protocol } from "./protocol";
+import { Events, Helper, ProtocolName, protocol } from "./protocol";
 import { createMachineRunner } from "@actyx/machine-runner";
-import { Actyx } from "@actyx/sdk";
-import { Pos } from "../../common/actors";
+import { Actyx, AqlEventMessage } from "@actyx/sdk";
+import { PlantData, Pos } from "../../common/actors";
+import { v4 } from "uuid";
 
 const machine = protocol.makeMachine("plant");
 
@@ -65,8 +66,58 @@ namespace States {
   HelpAccepted.react([Events.WateringDone], WateringDone, () => ({}));
 }
 
-const CHECK_WATER_LEVEL_DELTA = 1000;
 const WAIT_OFFER_DELTA = 200;
+
+export const plantNotDoneRequest = async (
+  actyx: Actyx,
+  plantId: string
+): Promise<Events.WaterRequestedPayload | undefined> => {
+  const query = `
+  PRAGMA features := subQuery interpolation
+
+  FROM '${ProtocolName}' ORDER DESC FILTER _.plantId = '${plantId}' & _.type = '${Events.WaterRequested.type}'
+
+  LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
+
+  FILTER !IsDefined(done_events[0])
+  `.trim();
+  return actyx
+    .queryAql({ query })
+    .then((aqlMessages): Events.WaterRequestedPayload | undefined => {
+      const events = aqlMessages.filter(
+        (event): event is AqlEventMessage => event.type === "event"
+      );
+      if (events.length === 0) {
+        return undefined;
+      }
+      if (events.length > 1) {
+        console.log("something is probably wrong");
+      }
+      return events
+        .map((event) => {
+          const parsed = Events.WaterRequestedPayload.safeParse(
+            event.payload
+          );
+          if (parsed.success) return parsed.data;
+          return null;
+        })
+        .filter((x): x is Events.WaterRequestedPayload => x !== null)[0];
+    });
+};
+
+export const performWateringRequest = async (actyx: Actyx, data: PlantData.Type) => {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    // sleep to avoid spamming
+    await sleep(50);
+    if (data.water < 50) {
+      const requestId =
+        (await Helper.plantNotDoneRequest(actyx, data.id))?.requestId ||
+        v4();
+      await performWateringProtocol(actyx, data.pos, requestId, data.id);
+    }
+  }
+}
 
 export const performWateringProtocol = async (
   actyx: Actyx,
