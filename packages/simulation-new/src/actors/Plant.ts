@@ -47,14 +47,15 @@ export class Plant {
         latestWaterEvent?.lamport || data.lamport
       );
     }
-
+    const x = Math.round(Math.random() * 400) - 200;
+    console.log("x", x);
     const plant = new Plant(
       actyx,
       PlantData.make({
         id,
         pos: {
-          x: Math.round(Math.random() * 200) - 400,
-          y: 100,
+          x: Math.round(Math.random() * 400) - 200,
+          y: Math.round(Math.random() * 100) + 100,
         },
       }),
       0
@@ -68,7 +69,7 @@ export class Plant {
   async runWaterLevelUpdateLoop() {
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      await sleep(100);
+      await sleep(50);
       this.measureWater();
       if (this.data.water > 0) {
         await PlantHappenings.publishWaterLevelUpdate(this.actyx, this.data);
@@ -80,7 +81,7 @@ export class Plant {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       // sleep to avoid spamming
-      await sleep(100);
+      await sleep(50);
       if (this.data.water < 50) {
         const requestId =
           (await Helper.plantNotDoneRequest(this.actyx, this.data.id))

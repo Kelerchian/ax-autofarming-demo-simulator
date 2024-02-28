@@ -30,8 +30,8 @@ export class Robot {
       RobotData.make({
         id,
         pos: {
-          x: Math.round(Math.random() * 200) - 400,
-          y: -100,
+          x: Math.round(Math.random() * 400) - 200,
+          y: (Math.round(Math.random() * 100) + 100) * -1,
         },
       })
     );
@@ -43,7 +43,7 @@ export class Robot {
   async runApplyTaskLoop() {
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      await sleep(100);
+      await sleep(50);
       const task = this.task;
       if (task?.t === "MoveToCoordinate") {
         const newPosition = Robot.calculateNewPosition(
@@ -69,7 +69,7 @@ export class Robot {
   async runWateringRequestAssistance() {
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      await sleep(100);
+      await sleep(50);
       try {
         const request =
           (await this.pickPreviouslyAcceptedRequest()) ||
@@ -249,7 +249,7 @@ export class Robot {
       ) {
         break;
       }
-      await sleep(2);
+      await sleep(5);
       checkAttempt += 1;
       if (checkAttempt > 5) {
         throw new Error("task not caught by subscribe");
