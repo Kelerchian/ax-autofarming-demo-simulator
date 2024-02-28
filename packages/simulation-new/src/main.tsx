@@ -16,11 +16,15 @@ const actyx = await Actyx.of(
   { actyxHost: "127.0.0.1", actyxPort: 4454 }
 );
 
-const robot = await Robot.init(actyx);
-const plant = await Plant.init(actyx);
+const skipRobot =
+  new URL(window.location.toString()).searchParams.get("skiprobot") !== null;
+const skipPlant =
+  new URL(window.location.toString()).searchParams.get("skipplant") !== null;
 
-robot.runLoop();
-plant.runLoop();
+await Promise.all([
+  !skipRobot && (await Robot.init(actyx)).runLoop(),
+  !skipPlant && (await Plant.init(actyx)).runLoop(),
+]);
 
 // We run simulator
 const simulator = Simulator(actyx);

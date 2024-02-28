@@ -41,14 +41,24 @@ export class Plant {
       const water = latestWaterEvent?.data ?? data.data.water;
       const pos = data.data.pos;
 
-      return new this(
+      return new Plant(
         actyx,
         PlantData.make({ id, water, pos }),
         latestWaterEvent?.lamport || data.lamport
       );
     }
 
-    const plant = new Plant(actyx, PlantData.make({ id }), 0);
+    const plant = new Plant(
+      actyx,
+      PlantData.make({
+        id,
+        pos: {
+          x: Math.round(Math.random() * 200) - 400,
+          y: 100,
+        },
+      }),
+      0
+    );
 
     await PlantHappenings.publishPlantCreated(actyx, plant.getData());
 
@@ -92,7 +102,6 @@ export class Plant {
       this.actyx,
       this.data.id,
       (meta) => {
-        console.log("water");
         if (meta.lamport < this.initializationLamportTime) return;
         PlantData.WaterLevel.applyWater(this.data);
       }

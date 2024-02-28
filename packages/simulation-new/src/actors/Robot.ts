@@ -30,8 +30,8 @@ export class Robot {
       RobotData.make({
         id,
         pos: {
-          x: -100 - Math.round(Math.random() * 50),
-          y: -100 - Math.round(Math.random() * 50),
+          x: Math.round(Math.random() * 200) - 400,
+          y: -100,
         },
       })
     );
@@ -307,7 +307,6 @@ export class Robot {
           id: accepted.payload.plantId,
           pos: accepted.payload.pos,
         });
-        await sleep(10000);
         await accepted.commands()?.markAsDone();
         break;
       }
