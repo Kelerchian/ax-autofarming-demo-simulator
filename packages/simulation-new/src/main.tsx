@@ -1,7 +1,6 @@
 /* eslint-disable no-constant-condition */
 import ReactDOM from "react-dom/client";
 import { SimulatorView } from "./Simulator.tsx";
-import "./index.scss";
 import { Simulator } from "./worker/sim.tsx";
 import { Actyx } from "@actyx/sdk";
 import { Robot } from "./actors/Robot.ts";

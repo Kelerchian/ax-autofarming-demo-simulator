@@ -1,4 +1,3 @@
-import "./index.scss";
 import { VaettirReact } from "vaettir-react";
 import { Simulator, SimulatorCtx } from "./worker/sim";
 import { ActorAssumer, ActorAssumerCtx } from "./worker/assume";

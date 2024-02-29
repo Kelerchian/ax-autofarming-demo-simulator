@@ -13,7 +13,7 @@ import {
   SimulatorCtx,
 } from "../../worker/sim";
 import React from "react";
-import { Box } from "../common";
+import { Box } from "../Box";
 import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "../../common/window";
 
 export const AssumeView = React.memo(() => {

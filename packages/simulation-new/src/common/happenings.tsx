@@ -111,8 +111,6 @@ export namespace PlantHappenings {
       fn(e.meta, parsed);
     });
   };
-
-  // TODO: subscriptions, will do later after we know the API shape we want
 }
 
 export namespace RobotHappenings {

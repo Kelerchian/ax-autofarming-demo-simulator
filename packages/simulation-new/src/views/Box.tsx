@@ -1,4 +1,4 @@
-import style from "./common.module.scss";
+import style from "./Box.module.scss";
 import cls from "classnames";
 
 export const Box = (
