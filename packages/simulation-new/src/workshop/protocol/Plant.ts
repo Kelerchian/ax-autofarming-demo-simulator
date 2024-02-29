@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Events, Helper, ProtocolName, protocol } from "./protocol";
+import { Events, ProtocolName, protocol } from "./protocol";
 import { createMachineRunner } from "@actyx/machine-runner";
 import { Actyx, AqlEventMessage } from "@actyx/sdk";
 import { PlantData, Pos } from "../../common/actors";
@@ -112,7 +112,7 @@ export const performWateringRequest = async (actyx: Actyx, data: PlantData.Type)
     await sleep(50);
     if (data.water < 50) {
       const requestId =
-        (await Helper.plantNotDoneRequest(actyx, data.id))?.requestId ||
+        (await plantNotDoneRequest(actyx, data.id))?.requestId ||
         v4();
       await performWateringProtocol(actyx, data.pos, requestId, data.id);
     }
