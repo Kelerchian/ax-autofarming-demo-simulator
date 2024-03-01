@@ -1,12 +1,13 @@
 import { VaettirReact } from "vaettir-react";
-import { Simulator, SimulatorCtx } from "./worker/sim";
-import { ActorAssumer, ActorAssumerCtx } from "./worker/assume";
-import { ActorView, VisualizerFrame } from "./views/actor/ActorView";
-import { AssumeView } from "./views/assumption/AssumeView";
-import { Selector, SelectorCtx } from "./worker/selector";
+import { Simulator, SimulatorCtx } from "./sim";
+import { ActorAssumer, ActorAssumerCtx } from "./assume";
+import { ActorView, VisualizerFrame } from "../views/actor/ActorView";
+import { AssumeView } from "../views/assumption/AssumeView";
+import { Selector, SelectorCtx } from "./selector";
+import { Actyx } from "@actyx/sdk";
 
-export const SimulatorView = ({ simulator }: { simulator: Simulator }) => {
-  VaettirReact.useObs(simulator.channels.change);
+export const SimulatorView = ({ actyx }: { actyx: Actyx }) => {
+  const simulator = VaettirReact.useOwned(() => Simulator(actyx));
   const selector = VaettirReact.useOwned(() => Selector(simulator));
   const assumer = VaettirReact.useOwned(() => ActorAssumer(simulator));
   const actors = simulator.api.actors();

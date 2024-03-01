@@ -1,9 +1,9 @@
-import { ActorAssumerCtx } from "../../worker/assume";
+import { ActorAssumerCtx } from "../../simulator/assume";
 import * as style from "./AssumeView.module.scss";
 import cls from "classnames";
 import { ActorLogo } from "../actor/ActorView";
 import { useEffect, useMemo, useState } from "react";
-import { SelectorCtx } from "../../worker/selector";
+import { SelectorCtx } from "../../simulator/selector";
 import { pipe } from "effect";
 import { Pos, RobotData, PlantData } from "../../common/actors";
 import {
@@ -11,7 +11,7 @@ import {
   RobotControlHandle,
   PlantControlHandle,
   SimulatorCtx,
-} from "../../worker/sim";
+} from "../../simulator/sim";
 import React from "react";
 import { Box } from "../Box";
 import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "../../common/window";

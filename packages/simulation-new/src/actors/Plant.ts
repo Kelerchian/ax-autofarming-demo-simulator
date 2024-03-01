@@ -15,7 +15,7 @@ export class Plant {
     private actyx: Actyx,
     private data: PlantData.Type,
     private initializationLamportTime: number,
-    private waterRequest: (actyx: Actyx, data: PlantData.Type) => Promise<void>
+    private coordination: (actyx: Actyx, data: PlantData.Type) => Promise<void>
   ) {
     this.lastMeasurement = Date.now();
   }
@@ -29,42 +29,50 @@ export class Plant {
     return plantId;
   }
 
-  static async init(actyx: Actyx, waterRequest: (actyx: Actyx, data: PlantData.Type) => Promise<void>): Promise<Plant> {
+  static async init(
+    actyx: Actyx,
+    waterRequest: (actyx: Actyx, data: PlantData.Type) => Promise<void>
+  ): Promise<void> {
     const id = Plant.initId();
-    const data = await PlantHappenings.retrieveById(actyx, id);
-    if (data) {
-      const latestWaterEvent = await PlantHappenings.retrieveWaterLevelOfId(
-        actyx,
-        id
-      );
-      const water = latestWaterEvent?.data ?? data.data.water;
-      const pos = data.data.pos;
+    const existingPlant = await PlantHappenings.retrieveById(actyx, id);
+    const plant = await (async () => {
+      if (existingPlant) {
+        const latestWaterEvent = await PlantHappenings.retrieveWaterLevelOfId(
+          actyx,
+          id
+        );
 
-      return new Plant(
-        actyx,
-        PlantData.make({ id, water, pos }),
-        latestWaterEvent?.lamport || data.lamport,
-        waterRequest
-      );
-    }
-    const x = Math.round(Math.random() * 400) - 200;
-    console.log("x", x);
-    const plant = new Plant(
-      actyx,
-      PlantData.make({
-        id,
-        pos: {
-          x: Math.round(Math.random() * 400) - 200,
-          y: Math.round(Math.random() * 100) + 100,
-        },
-      }),
-      0,
-      waterRequest
-    );
+        return new Plant(
+          actyx,
+          PlantData.make({
+            id,
+            water: latestWaterEvent?.data ?? existingPlant.data.water,
+            pos: existingPlant.data.pos,
+          }),
+          latestWaterEvent?.lamport || existingPlant.lamport,
+          waterRequest
+        );
+      } else {
+        const plant = new Plant(
+          actyx,
+          PlantData.make({
+            id,
+            pos: {
+              x: Math.round(Math.random() * 400) - 200,
+              y: Math.round(Math.random() * 100) + 100,
+            },
+          }),
+          0,
+          waterRequest
+        );
 
-    await PlantHappenings.publishPlantCreated(actyx, plant.getData());
+        await PlantHappenings.publishPlantCreated(actyx, plant.getData());
 
-    return plant;
+        return plant;
+      }
+    })();
+
+    return await plant.runLoop();
   }
 
   async runWaterLevelUpdateLoop() {
@@ -79,7 +87,7 @@ export class Plant {
   }
 
   async runWateringRequestLoop() {
-    await this.waterRequest(this.actyx, this.data)
+    await this.coordination(this.actyx, this.data);
   }
 
   async runLoop() {

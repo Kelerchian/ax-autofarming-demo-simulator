@@ -91,7 +91,7 @@ export const plantNotDoneRequest = async (
         return undefined;
       }
       if (events.length > 1) {
-        console.log("something is probably wrong");
+        console.error("something is probably wrong");
       }
       return events
         .map((event) => {

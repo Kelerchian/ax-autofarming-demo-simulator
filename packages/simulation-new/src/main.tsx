@@ -1,7 +1,6 @@
 /* eslint-disable no-constant-condition */
 import ReactDOM from "react-dom/client";
-import { SimulatorView } from "./Simulator.tsx";
-import { Simulator } from "./worker/sim.tsx";
+import { SimulatorView } from "./simulator/SimulatorView.tsx";
 import { Actyx } from "@actyx/sdk";
 import { Robot } from "./actors/Robot.ts";
 import { Plant } from "./actors/Plant.ts";
@@ -23,13 +22,9 @@ const skipPlant =
 
 await Promise.all([
   !skipRobot && (await Robot.init(actyx)).runLoop(),
-  !skipPlant && (await Plant.init(actyx, performWateringRequest)).runLoop(),
+  !skipPlant && (await Plant.init(actyx, performWateringRequest)),
 ]);
 
-// We run simulator
-const simulator = Simulator(actyx);
-simulator.api.init();
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <SimulatorView simulator={simulator} />
+  <SimulatorView actyx={actyx} />
 );

@@ -1,10 +1,10 @@
-import { ActorSim } from "../../worker/sim";
+import { ActorSim } from "../../simulator/sim";
 import cls from "classnames";
 import * as styles from "./ActorView.module.scss";
 import { ActorData, PlantData } from "../../common/actors";
-import { SelectorCtx } from "../../worker/selector";
+import { SelectorCtx } from "../../simulator/selector";
 import React, { useEffect, useMemo } from "react";
-import { ActorAssumerCtx } from "../../worker/assume";
+import { ActorAssumerCtx } from "../../simulator/assume";
 import {
   WINDOW_X_CENTER,
   WINDOW_X_SIZE,

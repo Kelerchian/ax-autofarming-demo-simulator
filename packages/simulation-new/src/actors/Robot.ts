@@ -3,7 +3,7 @@ import { PlantHappenings, RobotHappenings } from "../common/happenings";
 import { Actyx } from "@actyx/sdk";
 import { PlantData, Pos, RobotData } from "../common/actors";
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Events, ProtocolName, protocol } from "../workshop/protocol/protocol";
+import { Events, Queries, protocol } from "../workshop/protocol/protocol";
 import { createMachineRunner } from "@actyx/machine-runner";
 import { States as RobotStates } from "../workshop/protocol/Robot.ts";
 
@@ -72,8 +72,10 @@ export class Robot {
       await sleep(50);
       try {
         const request =
-          (await this.pickPreviouslyAcceptedRequest()) ||
-          (await this.pickOpenRequest());
+          (await Queries.queryPreviouslyAcceptedRequestByRobotId(
+            this.actyx,
+            this.data.id
+          )) || (await this.pickOpenRequest());
         if (request) {
           await this.executeRequest(request);
         }
@@ -95,81 +97,21 @@ export class Robot {
     this.runWateringRequestAssistance();
   }
 
-  private async pickPreviouslyAcceptedRequest() {
-    const actyx = this.actyx;
-    // TODO: on tab being accidentally closed, restore previously accepted task
-    const query = `
-        PRAGMA features := subQuery interpolation
+  private async pickOpenRequest() {
+    let closest: Events.WaterRequestedPayload | undefined = undefined;
 
-        FROM '${ProtocolName}' ORDER DESC FILTER _.type = '${Events.WaterRequested.type}'
-        LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
-        FILTER !IsDefined(done_events[0])
-        LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.HelpAccepted.type}' FILTER IsDefined(_.robotId) FILTER _.robotId = '${this.data.id}' END
-        FILTER IsDefined(accepted_events[0])
-    `;
-    const actyxEvents = await actyx.queryAql(query);
-    let closestRequest: Events.WaterRequestedPayload | undefined = undefined;
-    for (const event of actyxEvents) {
-      if (event.type !== "event") continue;
-      const parsed = Events.WaterRequestedPayload.safeParse(event.payload);
-      if (!parsed.success) continue;
-      if (!closestRequest) {
-        closestRequest = parsed.data;
+    for (const request of await Queries.queryOpenRequest(this.actyx)) {
+      if (!closest) {
+        closest = request;
       } else {
-        const distanceToOldRequest = Pos.distance(
-          this.data.pos,
-          closestRequest.pos
-        );
-        const distanteToNewRequest = Pos.distance(
-          this.data.pos,
-          parsed.data.pos
-        );
-        if (distanceToOldRequest > distanteToNewRequest) {
-          closestRequest = parsed.data;
+        const distanceToOldRequest = Pos.distance(this.data.pos, closest.pos);
+        const distanceToNewRequest = Pos.distance(this.data.pos, request.pos);
+        if (distanceToNewRequest < distanceToOldRequest) {
+          closest = request;
         }
       }
     }
-    return closestRequest;
-  }
-
-  private async pickOpenRequest(): Promise<
-    Events.WaterRequestedPayload | undefined
-  > {
-    const actyx = this.actyx;
-    // TODO: on tab being accidentally closed, restore previously accepted task
-    const query = `
-            PRAGMA features := subQuery interpolation
-
-            FROM '${ProtocolName}' ORDER DESC FILTER _.type = '${Events.WaterRequested.type}'
-
-            LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.HelpAccepted.type}' END ?? []
-            LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
-
-            FILTER !IsDefined(accepted_events[0]) & !IsDefined(done_events[0])
-        `;
-    const actyxEvents = await actyx.queryAql(query);
-    let closestRequest: Events.WaterRequestedPayload | undefined = undefined;
-    for (const event of actyxEvents) {
-      if (event.type !== "event") continue;
-      const parsed = Events.WaterRequestedPayload.safeParse(event.payload);
-      if (!parsed.success) continue;
-      if (!closestRequest) {
-        closestRequest = parsed.data;
-      } else {
-        const distanceToOldRequest = Pos.distance(
-          this.data.pos,
-          closestRequest.pos
-        );
-        const distanteToNewRequest = Pos.distance(
-          this.data.pos,
-          parsed.data.pos
-        );
-        if (distanceToOldRequest > distanteToNewRequest) {
-          closestRequest = parsed.data;
-        }
-      }
-    }
-    return closestRequest;
+    return closest;
   }
 
   /** Calculate a new position for the robot. */
@@ -301,8 +243,6 @@ export class Robot {
           break;
         }
 
-        // TODO: move and watering proximity logic
-        await this.moveTo({ pos: accepted.payload.pos });
         await this.waterPlant({
           id: accepted.payload.plantId,
           pos: accepted.payload.pos,
@@ -321,6 +261,7 @@ export class Robot {
   }
 
   private async waterPlant(watered: PlantData.Watered.Type) {
+    await this.moveTo({ pos: watered.pos });
     return PlantHappenings.publishWatered(this.actyx, watered);
   }
 
