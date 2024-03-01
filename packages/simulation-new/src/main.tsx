@@ -22,7 +22,7 @@ const skipPlant =
 
 await Promise.all([
   !skipRobot && (await Robot.init(actyx)).runLoop(),
-  !skipPlant && (await Plant.init(actyx, performWateringRequest)),
+  !skipPlant && (await Plant.init(actyx, performWateringRequest)).runLoop(),
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

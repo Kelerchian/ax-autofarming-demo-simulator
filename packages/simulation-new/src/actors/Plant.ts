@@ -31,48 +31,44 @@ export class Plant {
 
   static async init(
     actyx: Actyx,
-    waterRequest: (actyx: Actyx, data: PlantData.Type) => Promise<void>
-  ): Promise<void> {
+    coordination: (actyx: Actyx, data: PlantData.Type) => Promise<void>
+  ): Promise<Plant> {
     const id = Plant.initId();
     const existingPlant = await PlantHappenings.retrieveById(actyx, id);
-    const plant = await (async () => {
-      if (existingPlant) {
-        const latestWaterEvent = await PlantHappenings.retrieveWaterLevelOfId(
-          actyx,
-          id
-        );
+    if (existingPlant) {
+      const latestWaterEvent = await PlantHappenings.retrieveWaterLevelOfId(
+        actyx,
+        id
+      );
 
-        return new Plant(
-          actyx,
-          PlantData.make({
-            id,
-            water: latestWaterEvent?.data ?? existingPlant.data.water,
-            pos: existingPlant.data.pos,
-          }),
-          latestWaterEvent?.lamport || existingPlant.lamport,
-          waterRequest
-        );
-      } else {
-        const plant = new Plant(
-          actyx,
-          PlantData.make({
-            id,
-            pos: {
-              x: Math.round(Math.random() * 400) - 200,
-              y: Math.round(Math.random() * 100) + 100,
-            },
-          }),
-          0,
-          waterRequest
-        );
+      return new Plant(
+        actyx,
+        PlantData.make({
+          id,
+          water: latestWaterEvent?.data ?? existingPlant.data.water,
+          pos: existingPlant.data.pos,
+        }),
+        latestWaterEvent?.lamport || existingPlant.lamport,
+        coordination
+      );
+    } else {
+      const plant = new Plant(
+        actyx,
+        PlantData.make({
+          id,
+          pos: {
+            x: Math.round(Math.random() * 400) - 200,
+            y: Math.round(Math.random() * 100) + 100,
+          },
+        }),
+        0,
+        coordination
+      );
 
-        await PlantHappenings.publishPlantCreated(actyx, plant.getData());
+      await PlantHappenings.publishPlantCreated(actyx, plant.getData());
 
-        return plant;
-      }
-    })();
-
-    return await plant.runLoop();
+      return plant;
+    }
   }
 
   async runWaterLevelUpdateLoop() {

@@ -3,7 +3,8 @@ import { PlantHappenings, RobotHappenings } from "../common/happenings";
 import { Actyx } from "@actyx/sdk";
 import { PlantData, Pos, RobotData } from "../common/actors";
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Events, Queries, protocol } from "../workshop/protocol/protocol";
+import { Events, protocol } from "../workshop/protocol/protocol";
+import * as Queries from "../workshop/protocol/queries.ts";
 import { createMachineRunner } from "@actyx/machine-runner";
 import { States as RobotStates } from "../workshop/protocol/Robot.ts";
 
