@@ -33,6 +33,7 @@ runSimulator(actyx);
 
 // Plant Code & Robot Code
 // ===============
+// SEE the implementation of `plantCoordinationCode` and `robotCoordinationCode`
 
 if (!skipPlant) {
   Plant.run(actyx, plantCoordinationCode);

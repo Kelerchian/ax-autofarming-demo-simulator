@@ -1,68 +1,40 @@
 import { Actyx, AqlEventMessage, AqlResponse } from "@actyx/sdk";
 import { Events, ProtocolName } from "./protocol";
 
-export const queryPreviouslyAcceptedRequestByRobotId = async (
-  actyx: Actyx,
-  robotId: string
-): Promise<Events.WaterRequestedPayload | undefined> => {
-  // TODO: on tab being accidentally closed, restore previously accepted task
+export const queryUnderwatered = async (
+  actyx: Actyx
+): Promise<Events.WaterRequestedPayload[]> => {
   const query = `
       PRAGMA features := subQuery interpolation
 
       FROM '${ProtocolName}' ORDER DESC
       FILTER _.type = '${Events.WaterRequested.type}'
       
-      LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER (_.type ?? "") = '${Events.WateringDone.type}' END
-      FILTER !IsDefined(done_events[0])
+      LET this_time := _.time
+
+      LET ok_events := FROM '${ProtocolName}' FILTER (_.type ?? "") != '${Events.OkNow.type}' & (_.time ?? 0) > this_time  END ?? []
+      LET is_not_ok := IsDefined(ok_events)
       
-      LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER (_.type ?? "") = '${Events.HelpAccepted.type}' FILTER (_.robotId ?? "") = '${robotId}' END
-      FILTER IsDefined(accepted_events[0])
-  `;
-
-  return intoWaterRequests(await actyx.queryAql(query)).at(0);
-};
-
-export const queryOpenRequest = async (
-  actyx: Actyx
-): Promise<Events.WaterRequestedPayload[]> => {
-  const query = `
-      PRAGMA features := subQuery interpolation
-
-      FROM '${ProtocolName}' ORDER DESC 
-      FILTER _.type = '${Events.WaterRequested.type}'
-
-      LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER (_.type ?? "") = '${Events.WateringDone.type}' END
-      FILTER !IsDefined(done_events[0])
-
-      LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER (_.type ?? "") = '${Events.HelpAccepted.type}' END
-      FILTER !IsDefined(accepted_events[0])
+      FILTER is_not_ok
   `;
 
   return intoWaterRequests(await actyx.queryAql(query));
 };
 
-export const plantNotDoneRequest = async (
+export const publishWaterRequest = (
   actyx: Actyx,
-  plantId: string
-): Promise<Events.WaterRequestedPayload | undefined> => {
-  const query = `
-  PRAGMA features := subQuery interpolation
+  payload: Events.WaterRequestedPayload
+) =>
+  actyx.publish({
+    tags: [ProtocolName],
+    event: Events.WaterRequested.make(payload),
+  });
 
-  FROM '${ProtocolName}' ORDER DESC 
-  FILTER _.type = '${Events.WaterRequested.type}' & _.plantId = '${plantId}'
-
-  LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END
-
-  FILTER !IsDefined(done_events[0])
-  `.trim();
-
-  const events = intoWaterRequests(await actyx.queryAql({ query }));
-  if (events.length > 1) {
-    console.error("something is probably wrong");
-  }
-
-  return events.at(0);
-};
+export const publishWaterOk = (actyx: Actyx, payload: Events.OkNowPayload) =>
+  actyx.publish({
+    tags: [ProtocolName],
+    event: Events.OkNow.make(payload),
+  });
 
 export const intoWaterRequests = (
   arr: AqlResponse[]
