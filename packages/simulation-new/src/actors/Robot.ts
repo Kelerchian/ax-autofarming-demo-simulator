@@ -69,7 +69,6 @@ export class Robot {
     });
   }
 
-  /** Initialize a Robot, attempting to restore previous from the browser and Actyx if possible. */
   private static async init(actyx: Actyx, coordination: RobotCoordinationCode) {
     const id = Robot.initId();
     // Fetch existing data

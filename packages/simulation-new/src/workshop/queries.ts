@@ -35,7 +35,7 @@ export const queryOpenRequest = async (
       FILTER !IsDefined(done_events[0])
 
       LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER (_.type ?? "") = '${Events.HelpAccepted.type}' END
-      FILTER IsDefined(accepted_events[0])
+      FILTER !IsDefined(accepted_events[0])
   `;
 
   return intoWaterRequests(await actyx.queryAql(query));

@@ -68,7 +68,8 @@ namespace States {
   HelpAccepted.react([Events.WateringDone], WateringDone, () => ({}));
 }
 
-const WAIT_OFFER_DELTA = 200;
+const WAIT_OFFER_DELTA = 50;
+const DECIDE_OFFER_TIMEOUT = 300;
 
 export const performWateringProtocol = async (
   actyx: Actyx,
@@ -93,7 +94,8 @@ export const performWateringProtocol = async (
         .at(0);
 
       if (!bestOffer) {
-        // Wait until an offer has come (this state is expired)
+        // Wait until an offer has come.
+        // !commandsAvailable indicates that the state has expired, which means an offer has been made
         // eslint-disable-next-line no-constant-condition
         while (state.commandsAvailable()) {
           await sleep(WAIT_OFFER_DELTA);
@@ -103,7 +105,8 @@ export const performWateringProtocol = async (
 
       // If a best offer is found, set a local timeout
       // wait for 3000 milliseconds before choosing which offer is best
-      localBiddingTimeout = localBiddingTimeout || Date.now() + 3000;
+      localBiddingTimeout =
+        localBiddingTimeout || Date.now() + DECIDE_OFFER_TIMEOUT;
       const remainingWait = localBiddingTimeout - Date.now();
       await sleep(remainingWait);
       await requested.commands()?.accept(bestOffer.robot);

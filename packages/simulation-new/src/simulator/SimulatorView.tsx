@@ -6,9 +6,13 @@ import { AssumeView } from "../views/assumption/AssumeView";
 import { Selector, SelectorCtx } from "./selector";
 import { Actyx } from "@actyx/sdk";
 import ReactDOM from "react-dom/client";
+import { useEffect } from "react";
 
 export const SimulatorView = ({ actyx }: { actyx: Actyx }) => {
   const simulator = VaettirReact.useOwned(() => Simulator(actyx));
+  useEffect(() => {
+    simulator.api.init();
+  }, [simulator]);
   const selector = VaettirReact.useOwned(() => Selector(simulator));
   const assumer = VaettirReact.useOwned(() => ActorAssumer(simulator));
   const actors = simulator.api.actors();
