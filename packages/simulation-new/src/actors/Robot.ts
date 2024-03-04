@@ -1,44 +1,100 @@
-import { v4 } from "uuid";
+import { v4 as v4 } from "uuid";
 import { PlantHappenings, RobotHappenings } from "../common/happenings";
 import { Actyx } from "@actyx/sdk";
 import { PlantData, Pos, RobotData } from "../common/actors";
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Events, protocol } from "../workshop/protocol/protocol";
-import * as Queries from "../workshop/protocol/queries.ts";
-import { createMachineRunner } from "@actyx/machine-runner";
-import { States as RobotStates } from "../workshop/protocol/Robot.ts";
 
 const ROBOT_SPEED = 1; // unit / milliseconds
+
+/**
+ * A callback that contains the code to coordinate this particular robot and the
+ * rest of robots and plants in the swarm. The goal of the coordination is to
+ * make the robots and the plants work together so that plants are watered
+ * optimally (not underwatered nor overwatered).
+ *
+ * It is run on initialization. Actyx, the robot data getter, and the watering
+ * functionality is exposed through its parameter.
+ */
+export type RobotCoordinationCode = (
+  params: RobotExposedInterface
+) => Promise<unknown>;
+
+/**
+ * Exposed data getter and functionalities
+ */
+export type RobotExposedInterface = {
+  actyx: Actyx;
+  getId: () => string;
+  getPosition: () => Pos.Type["pos"];
+  waterPlant: ExecutePlantWatering;
+};
+
+/**
+ * Moves the robot to the targeted plant and waters it.
+ */
+export type ExecutePlantWatering = (
+  data: PlantData.Watered.Type
+) => Promise<unknown>;
 
 export class Robot {
   private task: RobotData.Task.MoveToCoordinate | undefined;
 
-  private constructor(private actyx: Actyx, private data: RobotData.Type) {}
+  private constructor(
+    private actyx: Actyx,
+    private data: RobotData.Type,
+    private coordinationCode: RobotCoordinationCode
+  ) {}
+
+  /** Initialize the Robot ID by first checking if `localStorage` has an ID and if not, creating a new one and setting it. */
+  private static initId(): string {
+    let robotId = localStorage.getItem("robotId");
+    if (!robotId) {
+      robotId = v4();
+      localStorage.setItem("robotId", robotId);
+    }
+    return robotId;
+  }
+
+  private static async loadExisting(actyx: Actyx, id: string) {
+    const creationData = await RobotHappenings.retrieveById(actyx, id);
+    if (!creationData) return null;
+    const latestState = await RobotHappenings.retrievePositionById(
+      actyx,
+      creationData.id
+    );
+    const latestPosition = latestState?.pos || creationData.pos;
+    return RobotData.make({
+      ...creationData,
+      pos: latestPosition,
+    });
+  }
 
   /** Initialize a Robot, attempting to restore previous from the browser and Actyx if possible. */
-  static async init(actyx: Actyx): Promise<Robot> {
+  private static async init(actyx: Actyx, coordination: RobotCoordinationCode) {
     const id = Robot.initId();
-    const data = await RobotHappenings.retrieveById(actyx, id);
-    if (data) {
-      const latestState = await RobotHappenings.retrievePositionById(actyx, id);
-      return new Robot(
-        actyx,
-        RobotData.make({ id, pos: latestState?.pos ?? data.pos })
-      );
-    }
-    const robot = new Robot(
-      actyx,
-      RobotData.make({
-        id,
-        pos: {
-          x: Math.round(Math.random() * 400) - 200,
-          y: (Math.round(Math.random() * 100) + 100) * -1,
-        },
-      })
-    );
-    await RobotHappenings.publishCreateRobotEvent(actyx, robot.getData());
+    // Fetch existing data
+    const existingData = await Robot.loadExisting(actyx, id);
+    if (existingData) return new Robot(actyx, existingData, coordination);
 
-    return robot;
+    // Create a new data and publish its "creation" event
+    const newData = RobotData.make({
+      id,
+      pos: {
+        x: Math.round(Math.random() * 400) - 200,
+        y: (Math.round(Math.random() * 100) + 100) * -1,
+      },
+    });
+    await RobotHappenings.publishCreateRobotEvent(actyx, newData);
+
+    return new Robot(actyx, newData, coordination);
+  }
+
+  static async run(
+    actyx: Actyx,
+    coordinationCode: RobotCoordinationCode
+  ): Promise<unknown> {
+    const robot = await this.init(actyx, coordinationCode);
+    return await robot.runLoop();
   }
 
   async runApplyTaskLoop() {
@@ -67,25 +123,6 @@ export class Robot {
     }
   }
 
-  async runWateringRequestAssistance() {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      await sleep(50);
-      try {
-        const request =
-          (await Queries.queryPreviouslyAcceptedRequestByRobotId(
-            this.actyx,
-            this.data.id
-          )) || (await this.pickOpenRequest());
-        if (request) {
-          await this.executeRequest(request);
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    }
-  }
-
   /** Start executing the robot.
    *
    * It will start by subscribing to relevant events, followed by attempting to perform new tasks.
@@ -95,24 +132,12 @@ export class Robot {
     this.subscribeToMovementUpdates();
 
     this.runApplyTaskLoop();
-    this.runWateringRequestAssistance();
-  }
-
-  private async pickOpenRequest() {
-    let closest: Events.WaterRequestedPayload | undefined = undefined;
-
-    for (const request of await Queries.queryOpenRequest(this.actyx)) {
-      if (!closest) {
-        closest = request;
-      } else {
-        const distanceToOldRequest = Pos.distance(this.data.pos, closest.pos);
-        const distanceToNewRequest = Pos.distance(this.data.pos, request.pos);
-        if (distanceToNewRequest < distanceToOldRequest) {
-          closest = request;
-        }
-      }
-    }
-    return closest;
+    this.coordinationCode({
+      actyx: this.actyx,
+      getId: () => this.data.id,
+      getPosition: () => this.data.pos,
+      waterPlant: (arg) => this.waterPlant(arg),
+    });
   }
 
   /** Calculate a new position for the robot. */
@@ -165,16 +190,6 @@ export class Robot {
     );
   }
 
-  /** Initialize the Robot ID by first checking if `localStorage` has an ID and if not, creating a new one and setting it. */
-  private static initId(): string {
-    let robotId = localStorage.getItem("robotId");
-    if (!robotId) {
-      robotId = v4();
-      localStorage.setItem("robotId", robotId);
-    }
-    return robotId;
-  }
-
   private async moveTo(destination: Pos.Type) {
     if (Pos.equal(destination.pos, this.data.pos)) return;
     await RobotHappenings.publishNewMoveTask(this.actyx, {
@@ -221,39 +236,6 @@ export class Robot {
     }
   }
 
-  private async executeRequest(request: Events.WaterRequestedPayload) {
-    const actyx = this.actyx;
-    const machine = createMachineRunner(
-      actyx,
-      protocol.tagWithEntityId(request.requestId),
-      RobotStates.Init,
-      { robotId: this.data.id }
-    );
-
-    for await (const state of machine) {
-      // nothing is happening???
-      const requested = state.as(RobotStates.WaterRequested);
-      if (requested && !requested.payload.offered) {
-        await requested.commands()?.offer(this.data.pos);
-      }
-
-      const accepted = state.as(RobotStates.HelpAccepted);
-      if (accepted) {
-        // if someone else is accepted, exit from the loop
-        if (accepted.payload.assignedRobotId !== this.data.id) {
-          break;
-        }
-
-        await this.waterPlant({
-          id: accepted.payload.plantId,
-          pos: accepted.payload.pos,
-        });
-        await accepted.commands()?.markAsDone();
-        break;
-      }
-    }
-  }
-
   private async publishPosUpdate(pos: Pos.Type["pos"]) {
     return RobotHappenings.publishPosUpdate(this.actyx, {
       id: this.data.id,
@@ -264,10 +246,5 @@ export class Robot {
   private async waterPlant(watered: PlantData.Watered.Type) {
     await this.moveTo({ pos: watered.pos });
     return PlantHappenings.publishWatered(this.actyx, watered);
-  }
-
-  /** Convert the current Robot instance in to a payload for Actyx. */
-  private getData(): RobotData.Type {
-    return { ...this.data };
   }
 }

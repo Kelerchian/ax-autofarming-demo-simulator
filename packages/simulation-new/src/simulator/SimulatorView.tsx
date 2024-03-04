@@ -5,6 +5,7 @@ import { ActorView, VisualizerFrame } from "../views/actor/ActorView";
 import { AssumeView } from "../views/assumption/AssumeView";
 import { Selector, SelectorCtx } from "./selector";
 import { Actyx } from "@actyx/sdk";
+import ReactDOM from "react-dom/client";
 
 export const SimulatorView = ({ actyx }: { actyx: Actyx }) => {
   const simulator = VaettirReact.useOwned(() => Simulator(actyx));
@@ -25,5 +26,11 @@ export const SimulatorView = ({ actyx }: { actyx: Actyx }) => {
         </ActorAssumerCtx.Provider>
       </SelectorCtx.Provider>
     </SimulatorCtx.Provider>
+  );
+};
+
+export const runSimulator = (actyx: Actyx) => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <SimulatorView actyx={actyx} />
   );
 };

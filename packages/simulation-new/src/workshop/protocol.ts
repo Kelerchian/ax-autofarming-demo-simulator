@@ -1,6 +1,6 @@
 import { AppManifest } from "@actyx/sdk";
 import { MachineEvent, SwarmProtocol } from "@actyx/machine-runner";
-import { Pos } from "../../common/actors";
+import { Pos } from "../common/actors";
 import * as z from "zod";
 
 export const RequestIdPayload = z.object({ requestId: z.string() });

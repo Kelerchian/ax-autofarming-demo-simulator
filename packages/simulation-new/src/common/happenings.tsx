@@ -91,7 +91,7 @@ export namespace PlantHappenings {
     return sdk.publish(
       TagPlant.and(TagPlantWithId(watered.id))
         .and(TagPlantWatered)
-        .apply(watered)
+        .apply(PlantData.Watered.Type.parse(watered))
     );
   };
 
@@ -128,14 +128,13 @@ export namespace RobotHappenings {
   export const publishCreateRobotEvent = async (
     sdk: Actyx,
     robot: RobotData.Type
-  ) => {
-    const taggedEvent = WorldCreate.and(WorldCreateWithId(robot.id))
-      .and(RobotHappenings.TagRobot)
-      .and(RobotHappenings.TagRobotCreated)
-      .apply(robot);
-
-    return sdk.publish(taggedEvent);
-  };
+  ) =>
+    sdk.publish(
+      WorldCreate.and(WorldCreateWithId(robot.id))
+        .and(RobotHappenings.TagRobot)
+        .and(RobotHappenings.TagRobotCreated)
+        .apply(RobotData.Type.parse(robot))
+    );
 
   /** Check if the ID exists in Actyx. */
   export const retrieveById = async (
@@ -189,7 +188,7 @@ export namespace RobotHappenings {
       WorldUpdate.and(RobotHappenings.TagRobot)
         .and(RobotHappenings.TagRobotWithId(posUpdate.id))
         .and(RobotHappenings.TagRobotPosUpdate)
-        .apply(posUpdate)
+        .apply(RobotData.PosUpdate.Type.parse(posUpdate))
     );
 
   export const subscribeToMovementUpdatesById = (

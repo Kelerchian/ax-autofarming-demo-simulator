@@ -3,9 +3,10 @@ import { sleep } from "systemic-ts-utils/async-utils";
 import { Events, protocol } from "./protocol";
 import { createMachineRunner } from "@actyx/machine-runner";
 import { Actyx } from "@actyx/sdk";
-import { PlantData, Pos } from "../../common/actors";
-import { v4 } from "uuid";
+import { Pos } from "../common/actors";
+import { v4 as v4 } from "uuid";
 import { plantNotDoneRequest } from "./queries";
+import { PlantCoordinationCode } from "../actors/Plant";
 
 const machine = protocol.makeMachine("plant");
 
@@ -69,22 +70,6 @@ namespace States {
 
 const WAIT_OFFER_DELTA = 200;
 
-export const performWateringRequest = async (
-  actyx: Actyx,
-  data: PlantData.Type
-) => {
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    // sleep to avoid spamming
-    await sleep(50);
-    if (data.water < 50) {
-      const requestId =
-        (await plantNotDoneRequest(actyx, data.id))?.requestId || v4();
-      await performWateringProtocol(actyx, data.pos, requestId, data.id);
-    }
-  }
-};
-
 export const performWateringProtocol = async (
   actyx: Actyx,
   pos: { x: number; y: number },
@@ -126,6 +111,23 @@ export const performWateringProtocol = async (
 
     if (state.is(States.WateringDone)) {
       break;
+    }
+  }
+};
+
+export const plantCoordinationCode: PlantCoordinationCode = async ({
+  actyx,
+  getData,
+}) => {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const data = getData();
+    // sleep to avoid spamming
+    await sleep(50);
+    if (data.water < 50) {
+      const requestId =
+        (await plantNotDoneRequest(actyx, data.id))?.requestId || v4();
+      await performWateringProtocol(actyx, data.pos, requestId, data.id);
     }
   }
 };
