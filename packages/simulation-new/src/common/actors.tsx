@@ -189,17 +189,19 @@ export namespace PlantData {
     export type Type = z.TypeOf<typeof Type>;
     export const Type = Id.Type.and(z.object({ water: z.number() }));
 
+    export const CanBeWatered = 60;
     export const Underwatered = 40;
     export const OverwateredThreshold = 100;
 
     export const isNormal = (plant: Type) =>
       plant.water >= Underwatered && plant.water <= OverwateredThreshold;
     export const isUnderwatered = (plant: Type) => plant.water < Underwatered;
+    export const canBeWatered = (plant: Type) => plant.water < CanBeWatered;
     export const isOverwatered = (plant: Type) =>
       plant.water > OverwateredThreshold;
 
     export const applyWater = (plant: Type) => {
-      if (isUnderwatered(plant)) {
+      if (canBeWatered(plant)) {
         plant.water = 100;
         return;
       }
@@ -208,7 +210,7 @@ export namespace PlantData {
         return;
       }
       if (isOverwatered(plant)) {
-        plant.water = Math.min(plant.water + 20, 100);
+        plant.water = Math.min(plant.water + 20, 150);
         return;
       }
     };

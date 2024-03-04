@@ -3,10 +3,10 @@ import { sleep } from "systemic-ts-utils/async-utils";
 import { Events, protocol } from "./protocol";
 import { createMachineRunner } from "@actyx/machine-runner";
 import { Actyx } from "@actyx/sdk";
-import { Pos } from "../common/actors";
+import { PlantData, Pos } from "../common/actors";
 import { v4 as v4 } from "uuid";
 import { plantNotDoneRequest } from "./queries";
-import { PlantCoordinationCode } from "../actors/Plant";
+import { Plant, PlantCoordinationCode } from "../actors/Plant";
 
 const machine = protocol.makeMachine("plant");
 
@@ -120,17 +120,18 @@ export const performWateringProtocol = async (
 
 export const plantCoordinationCode: PlantCoordinationCode = async ({
   actyx,
-  getData,
+  getId,
+  getWaterLevel,
+  getPosition,
 }) => {
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const data = getData();
     // sleep to avoid spamming
-    await sleep(50);
-    if (data.water < 50) {
+    if (getWaterLevel() < PlantData.WaterLevel.CanBeWatered) {
       const requestId =
-        (await plantNotDoneRequest(actyx, data.id))?.requestId || v4();
-      await performWateringProtocol(actyx, data.pos, requestId, data.id);
+        (await plantNotDoneRequest(actyx, getId()))?.requestId || v4();
+      await performWateringProtocol(actyx, getPosition(), requestId, getId());
     }
+    await sleep(50);
   }
 };

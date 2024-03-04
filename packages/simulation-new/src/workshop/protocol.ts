@@ -1,4 +1,3 @@
-import { AppManifest } from "@actyx/sdk";
 import { MachineEvent, SwarmProtocol } from "@actyx/machine-runner";
 import { Pos } from "../common/actors";
 import * as z from "zod";
@@ -38,9 +37,3 @@ export namespace Events {
 
 export const ProtocolName = "WateringRequest" as const;
 export const protocol = SwarmProtocol.make("WateringRequest", Events.All);
-
-export const manifest: AppManifest = {
-  appId: "com.example.plant-farm",
-  displayName: "Plant Farm",
-  version: "1.0.0",
-};

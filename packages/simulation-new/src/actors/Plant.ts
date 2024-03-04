@@ -1,6 +1,6 @@
 import { Actyx } from "@actyx/sdk";
 import { PlantHappenings } from "../common/happenings";
-import { PlantData } from "../common/actors";
+import { PlantData, Pos } from "../common/actors";
 import { v4 as v4 } from "uuid";
 import { sleep } from "systemic-ts-utils/async-utils";
 
@@ -18,7 +18,9 @@ const WATER_DRAIN = 5;
  */
 export type PlantExposedInterface = {
   actyx: Actyx;
-  getData: () => PlantData.Type;
+  getWaterLevel: () => number;
+  getId: () => string;
+  getPosition: () => Pos.Type["pos"];
 };
 
 export type PlantCoordinationCode = (
@@ -109,7 +111,9 @@ export class Plant {
     this.runWaterLevelUpdateLoop();
     this.coordination({
       actyx: this.actyx,
-      getData: () => ({ ...this.data }),
+      getId: () => this.data.id,
+      getWaterLevel: () => this.data.water,
+      getPosition: () => this.data.pos,
     });
     PlantHappenings.subscribeWaterEventById(
       this.actyx,
