@@ -1,19 +1,19 @@
-import { ActorAssumerCtx } from "../../worker/assume";
+import { ActorAssumerCtx } from "../../simulator/assume";
 import * as style from "./AssumeView.module.scss";
 import cls from "classnames";
 import { ActorLogo } from "../actor/ActorView";
 import { useEffect, useMemo, useState } from "react";
-import { SelectorCtx } from "../../worker/selector";
+import { SelectorCtx } from "../../simulator/selector";
 import { pipe } from "effect";
-import { Pos, Robot, Sensor } from "../../common/actors";
+import { Pos, RobotData, PlantData } from "../../common/actors";
 import {
   ControlHandle,
   RobotControlHandle,
-  SensorControlHandle,
+  PlantControlHandle,
   SimulatorCtx,
-} from "../../worker/sim";
+} from "../../simulator/sim";
 import React from "react";
-import { Box } from "../common";
+import { Box } from "../Box";
 import { WINDOW_X_CENTER, WINDOW_Y_CENTER } from "../../common/window";
 
 export const AssumeView = React.memo(() => {
@@ -104,8 +104,8 @@ export const AssumeControl = ({ control }: { control: ControlHandle }) => {
   if (control.actor.t === "Robot") {
     return <AssumeControlRobot control={control as RobotControlHandle} />;
   }
-  if (control.actor.t === "Sensor") {
-    return <AssumeControlSensor control={control as SensorControlHandle} />;
+  if (control.actor.t === "Plant") {
+    return <AssumeControlPlant control={control as PlantControlHandle} />;
   }
   return <AssumeControlUnsupported control={control} />;
 };
@@ -159,7 +159,10 @@ export const AssumeControlRobot = ({
         <AssumeControlRobotWaterPlant
           robot={control.actor}
           onExec={(plantId) => {
-            control.control.waterPlant(plantId);
+            control.control.waterPlant({
+              id: plantId,
+              pos: control.actor.pos,
+            });
             setMode(null);
           }}
           onCancel={() => setMode(null)}
@@ -170,19 +173,19 @@ export const AssumeControlRobot = ({
 };
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
-namespace AssumeControlSensorMode {
+namespace AssumeControlPlantMode {
   export const SetWaterLevel: unique symbol = Symbol();
   export type SetWaterLevel = typeof SetWaterLevel;
 
   export type Type = SetWaterLevel;
 }
 
-export const AssumeControlSensor = ({
+export const AssumeControlPlant = ({
   control,
 }: {
-  control: SensorControlHandle;
+  control: PlantControlHandle;
 }) => {
-  const [mode, setMode] = useState<null | AssumeControlSensorMode.Type>(null);
+  const [mode, setMode] = useState<null | AssumeControlPlantMode.Type>(null);
 
   return (
     <Box>
@@ -190,14 +193,14 @@ export const AssumeControlSensor = ({
         <>
           <Box
             role="button"
-            onClick={() => setMode(AssumeControlSensorMode.SetWaterLevel)}
+            onClick={() => setMode(AssumeControlPlantMode.SetWaterLevel)}
           >
             Set Water Level (current: {control.actor.water}) %
           </Box>
         </>
       )}
-      {mode === AssumeControlSensorMode.SetWaterLevel && (
-        <AssumeControlSensorSetWaterLevel
+      {mode === AssumeControlPlantMode.SetWaterLevel && (
+        <AssumeControlPlantSetWaterLevel
           onExec={(value) => {
             control.control.setWaterLevel(value);
             setMode(null);
@@ -209,7 +212,7 @@ export const AssumeControlSensor = ({
   );
 };
 
-export const AssumeControlSensorSetWaterLevel = ({
+export const AssumeControlPlantSetWaterLevel = ({
   onExec,
   onCancel,
 }: {
@@ -263,11 +266,10 @@ export const AssumeControlRobotMoveTo = (props: {
 };
 
 export const AssumeControlRobotWaterPlant = ({
-  robot,
   onExec,
   onCancel,
 }: {
-  robot: Readonly<Robot.Type>;
+  robot: Readonly<RobotData.Type>;
   onExec: (plantId: string) => unknown;
   onCancel: () => unknown;
 }) => {
@@ -275,9 +277,9 @@ export const AssumeControlRobotWaterPlant = ({
   const hoverAgent = useMemo(selector.api.createHoverAgent, []);
 
   useEffect(() => {
-    const unsub = selector.api.registerListener((sensor) => {
-      if (sensor.t !== "Sensor") return;
-      onExec(sensor.id);
+    const unsub = selector.api.registerListener((plant) => {
+      if (plant.t !== "Plant") return;
+      onExec(plant.id);
     });
 
     return () => {
@@ -296,11 +298,7 @@ export const AssumeControlRobotWaterPlant = ({
       <div>
         {selector.api
           .selections()
-          .filter((actor): actor is Sensor.Type => actor.t === "Sensor")
-          .filter((sensor) => {
-            const distance = Pos.distance(sensor.pos, robot.pos);
-            return Sensor.WaterLevel.withinWateringProximity(distance);
-          })
+          .filter((actor): actor is PlantData.Type => actor.t === "Plant")
           .map((actor) => (
             <Box
               key={actor.id}

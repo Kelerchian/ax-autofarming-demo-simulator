@@ -1,91 +1,123 @@
-import { v4 } from "uuid";
-import {
-  PlantHappenings,
-  RobotHappenings,
-  WorldCreate,
-  WorldCreateWithId,
-  WorldUpdate,
-} from "../common/happenings";
-import { Actyx, AqlEventMessage } from "@actyx/sdk";
-import { Robot as NRobot, Pos } from "../common/actors";
+import { v4 as v4 } from "uuid";
+import { PlantHappenings, RobotHappenings } from "../common/happenings";
+import { Actyx } from "@actyx/sdk";
+import { PlantData, Pos, RobotData } from "../common/actors";
 import { sleep } from "systemic-ts-utils/async-utils";
-import { Events, ProtocolName, protocol } from "../workshop/protocol/protocol";
-import { createMachineRunner } from "@actyx/machine-runner";
-import { States as RobotStates } from "../workshop/protocol/Robot.ts";
 
 const ROBOT_SPEED = 1; // unit / milliseconds
 
+/**
+ * A callback that contains the code to coordinate this particular robot and the
+ * rest of robots and plants in the swarm. The goal of the coordination is to
+ * make the robots and the plants work together so that plants are watered
+ * optimally (not underwatered nor overwatered).
+ *
+ * It is run on initialization. Actyx, the robot data getter, and the watering
+ * functionality is exposed through its parameter.
+ */
+export type RobotCoordinationCode = (
+  params: RobotExposedInterface
+) => Promise<unknown>;
+
+/**
+ * Exposed data getter and functionalities
+ */
+export type RobotExposedInterface = {
+  actyx: Actyx;
+  getId: () => string;
+  getPosition: () => Pos.Type["pos"];
+  waterPlant: ExecutePlantWatering;
+};
+
+/**
+ * Moves the robot to the targeted plant and waters it.
+ */
+export type ExecutePlantWatering = (
+  data: PlantData.Watered.Type
+) => Promise<unknown>;
+
 export class Robot {
-  private task: NRobot.Task.MoveToCoordinate | undefined;
+  private task: RobotData.Task.MoveToCoordinate | undefined;
 
   private constructor(
     private actyx: Actyx,
-    private readonly id: string,
-    private position: { x: number; y: number }
-  ) { }
+    private data: RobotData.Type,
+    private coordinationCode: RobotCoordinationCode
+  ) {}
 
-  /** Initialize a Robot, attempting to restore previous from the browser and Actyx if possible. */
-  static async init(actyx: Actyx): Promise<Robot> {
-    const id = Robot.initId();
-    const data = await Robot.retrieveIdFromActyx(id, actyx);
-    if (data) {
-      const latestState = await Robot.retrieveLatestStateFromActyx(id, actyx);
-      return new Robot(actyx, id, latestState?.pos ?? data.pos);
+  /** Initialize the Robot ID by first checking if `localStorage` has an ID and if not, creating a new one and setting it. */
+  private static initId(): string {
+    let robotId = localStorage.getItem("robotId");
+    if (!robotId) {
+      robotId = v4();
+      localStorage.setItem("robotId", robotId);
     }
-    const robot = new Robot(actyx, id, { x: -100, y: -100 });
-    await Robot.publishCreateRobotEvent(actyx, robot.toPayload());
-    return robot;
+    return robotId;
+  }
+
+  private static async loadExisting(actyx: Actyx, id: string) {
+    const creationData = await RobotHappenings.retrieveById(actyx, id);
+    if (!creationData) return null;
+    const latestState = await RobotHappenings.retrievePositionById(
+      actyx,
+      creationData.id
+    );
+    const latestPosition = latestState?.pos || creationData.pos;
+    return RobotData.make({
+      ...creationData,
+      pos: latestPosition,
+    });
+  }
+
+  private static async init(actyx: Actyx, coordination: RobotCoordinationCode) {
+    const id = Robot.initId();
+    // Fetch existing data
+    const existingData = await Robot.loadExisting(actyx, id);
+    if (existingData) return new Robot(actyx, existingData, coordination);
+
+    // Create a new data and publish its "creation" event
+    const newData = RobotData.make({
+      id,
+      pos: {
+        x: Math.round(Math.random() * 400) - 200,
+        y: (Math.round(Math.random() * 100) + 100) * -1,
+      },
+    });
+    await RobotHappenings.publishCreateRobotEvent(actyx, newData);
+
+    return new Robot(actyx, newData, coordination);
+  }
+
+  static async run(
+    actyx: Actyx,
+    coordinationCode: RobotCoordinationCode
+  ): Promise<unknown> {
+    const robot = await this.init(actyx, coordinationCode);
+    return await robot.runLoop();
   }
 
   async runApplyTaskLoop() {
-    const actyx = this.actyx;
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      await sleep(100);
+      await sleep(50);
       const task = this.task;
-      if (task?.t) {
-        switch (task.t) {
-          case "MoveToCoordinate": {
-            const newPosition = Robot.calculateNewPosition(
-              task.from.pos,
-              task.to.pos,
-              task.start
-            );
-            if (newPosition) {
-              this.position = newPosition;
-              await Robot.publishPosUpdate(actyx, {
-                id: this.id,
-                pos: newPosition,
-              });
-              continue;
-            }
-            await Robot.publishPosUpdate(actyx, {
-              id: this.id,
-              pos: task.to.pos,
-            });
-            // again to avoid race condition caused by subscription
-            // to the above event that sometimes come late
-            this.position = task.to.pos;
-            this.task = undefined;
-          }
+      if (task?.t === "MoveToCoordinate") {
+        const newPosition = Robot.calculateNewPosition(
+          task.from.pos,
+          task.to.pos,
+          task.start
+        );
+        if (newPosition) {
+          this.data.pos = newPosition;
+          await this.publishPosUpdate(newPosition);
+          continue;
         }
-      }
-    }
-  }
 
-  async runWateringRequestAssistance() {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      await sleep(100);
-      try {
-        const request =
-          (await this.pickPreviouslyAcceptedRequest()) ||
-          (await this.pickOpenRequest());
-        if (request) {
-          await this.executeRequest(request);
-        }
-      } catch (error) {
-        console.error(error);
+        await this.publishPosUpdate(task.to.pos);
+        // again to avoid race condition caused by subscription
+        // to the above event that sometimes come late
+        this.data.pos = task.to.pos;
+        this.task = undefined;
       }
     }
   }
@@ -99,84 +131,12 @@ export class Robot {
     this.subscribeToMovementUpdates();
 
     this.runApplyTaskLoop();
-    this.runWateringRequestAssistance();
-  }
-
-  private async pickPreviouslyAcceptedRequest() {
-    const actyx = this.actyx;
-    // TODO: on tab being accidentally closed, restore previously accepted task
-    const query = `
-            PRAGMA features := subQuery interpolation
-
-            FROM '${ProtocolName}' ORDER DESC FILTER _.type = '${Events.WaterRequested.type}'
-            LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
-            FILTER !IsDefined(done_events[0])
-            LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.HelpAccepted.type}' FILTER IsDefined(_.robotId) FILTER _.robotId = '${this.id}' END
-            FILTER IsDefined(accepted_events[0])
-        `;
-    const actyxEvents = await actyx.queryAql(query);
-    let closestRequest: Events.WaterRequestedPayload | undefined = undefined;
-    for (const event of actyxEvents) {
-      if (event.type !== "event") continue;
-      const parsed = Events.WaterRequestedPayload.safeParse(event.payload);
-      if (!parsed.success) continue;
-      if (!closestRequest) {
-        closestRequest = parsed.data;
-      } else {
-        const distanceToOldRequest = Pos.distance(
-          this.position,
-          closestRequest.pos
-        );
-        const distanteToNewRequest = Pos.distance(
-          this.position,
-          parsed.data.pos
-        );
-        if (distanceToOldRequest > distanteToNewRequest) {
-          closestRequest = parsed.data;
-        }
-      }
-    }
-    return closestRequest;
-  }
-
-  private async pickOpenRequest(): Promise<
-    Events.WaterRequestedPayload | undefined
-  > {
-    const actyx = this.actyx;
-    // TODO: on tab being accidentally closed, restore previously accepted task
-    const query = `
-            PRAGMA features := subQuery interpolation
-
-            FROM '${ProtocolName}' ORDER DESC FILTER _.type = '${Events.WaterRequested.type}'
-
-            LET accepted_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.HelpAccepted.type}' END ?? []
-            LET done_events := FROM \`${ProtocolName}:{_.requestId}\` FILTER _.type = '${Events.WateringDone.type}' END ?? []
-
-            FILTER !IsDefined(accepted_events[0]) & !IsDefined(done_events[0])
-        `;
-    const actyxEvents = await actyx.queryAql(query);
-    let closestRequest: Events.WaterRequestedPayload | undefined = undefined;
-    for (const event of actyxEvents) {
-      if (event.type !== "event") continue;
-      const parsed = Events.WaterRequestedPayload.safeParse(event.payload);
-      if (!parsed.success) continue;
-      if (!closestRequest) {
-        closestRequest = parsed.data;
-      } else {
-        const distanceToOldRequest = Pos.distance(
-          this.position,
-          closestRequest.pos
-        );
-        const distanteToNewRequest = Pos.distance(
-          this.position,
-          parsed.data.pos
-        );
-        if (distanceToOldRequest > distanteToNewRequest) {
-          closestRequest = parsed.data;
-        }
-      }
-    }
-    return closestRequest;
+    this.coordinationCode({
+      actyx: this.actyx,
+      getId: () => this.data.id,
+      getPosition: () => this.data.pos,
+      waterPlant: (arg) => this.waterPlant(arg),
+    });
   }
 
   /** Calculate a new position for the robot. */
@@ -203,19 +163,15 @@ export class Robot {
 
   /** Subscribe to `RobotNewMoveTask`. */
   private subscribeToNewTasks() {
-    const actyx = this.actyx;
-    actyx.subscribeAql(
-      `FROM ${RobotHappenings.TagRobotNewMoveTask} FILTER _.id = '${this.id}'`,
-      (event) => {
-        if (event.type !== "event") return;
-        const parsed = RobotHappenings.PosUpdate.Type.safeParse(event.payload);
-        if (!parsed.success || parsed.data.id !== this.id) return;
+    return RobotHappenings.subscribeToNewTasksById(
+      this.actyx,
+      this.data.id,
+      (destination) => {
         // NOTE: instead of checking here if theres an ongoing task,
         // we should check in the UI and stop the user from submitting one
         this.task = {
-          t: "MoveToCoordinate",
-          from: { pos: this.position },
-          to: { pos: parsed.data.pos },
+          ...destination,
+          from: { pos: this.data.pos },
           start: Date.now(),
         };
       }
@@ -224,80 +180,20 @@ export class Robot {
 
   /** Subscribe to `RobotPosUpdate` events. */
   private subscribeToMovementUpdates() {
-    const actyx = this.actyx;
-    actyx.subscribeAql(
-      `FROM ${RobotHappenings.TagRobotPosUpdate} FILTER _.id = '${this.id}'`,
-      (event) => {
-        if (event.type !== "event") return;
-        const parsed = RobotHappenings.PosUpdate.Type.safeParse(event);
-        if (!parsed.success || parsed.data.id !== this.id) return;
-        this.position = parsed.data.pos;
+    return RobotHappenings.subscribeToMovementUpdatesById(
+      this.actyx,
+      this.data.id,
+      (posUpdate) => {
+        this.data.pos = posUpdate.pos;
       }
     );
   }
 
-  /** Initialize the Robot ID by first checking if `localStorage` has an ID and if not, creating a new one and setting it. */
-  private static initId(): string {
-    let robotId = localStorage.getItem("robotId");
-    if (!robotId) {
-      robotId = v4();
-      localStorage.setItem("robotId", robotId);
-    }
-    return robotId;
-  }
-
-  /** Check if the ID exists in Actyx. */
-  private static async retrieveIdFromActyx(
-    id: string,
-    actyx: Actyx
-  ): Promise<NRobot.Type | undefined> {
-    const actyxEvents = await actyx.queryAql(`FROM ${WorldCreateWithId(id)}`);
-    const event = actyxEvents
-      .filter((e): e is AqlEventMessage => e.type === "event")
-      .at(0);
-    const parsed = NRobot.Type.safeParse(event?.payload);
-    if (parsed.success) {
-      return parsed.data;
-    }
-    return undefined;
-  }
-
-  /** Retrieve the latest state from Actyx. */
-  private static async retrieveLatestStateFromActyx(
-    id: string,
-    actyx: Actyx
-  ): Promise<RobotHappenings.PosUpdate.Type | undefined> {
-    // NOTE: This is not the full state the robot might be in
-    // we still need to take into account the current request it may be fulfilling
-    const actyxEvents = await actyx.queryAql(`
-            PRAGMA features := aggregate
-            FROM ${RobotHappenings.TagRobotWithId(id)} & ${WorldUpdate}
-            AGGREGATE LAST(_)
-        `);
-    const event = actyxEvents
-      .filter((e): e is AqlEventMessage => e.type === "event")
-      .at(0);
-    const parsed = RobotHappenings.PosUpdate.Type.safeParse(event?.payload);
-    if (parsed.success) {
-      return parsed.data;
-    }
-    return undefined;
-  }
-
-  /** Convert the current Robot instance in to a payload for Actyx. */
-  private toPayload(): NRobot.Type {
-    return {
-      id: this.id,
-      pos: this.position,
-      t: "Robot",
-    };
-  }
-
-  private async moveTo(pos: Pos.Type) {
-    if (Pos.equal(pos.pos, this.position)) return;
+  private async moveTo(destination: Pos.Type) {
+    if (Pos.equal(destination.pos, this.data.pos)) return;
     await RobotHappenings.publishNewMoveTask(this.actyx, {
-      id: this.id,
-      ...pos,
+      id: this.data.id,
+      to: destination,
     });
 
     let checkAttempt = 0;
@@ -306,11 +202,11 @@ export class Robot {
       // wait until 'subscribe' catch the new task
       if (
         this.task?.t === "MoveToCoordinate" &&
-        Pos.equal(this.task.to.pos, pos.pos)
+        Pos.equal(this.task.to.pos, destination.pos)
       ) {
         break;
       }
-      await sleep(2);
+      await sleep(5);
       checkAttempt += 1;
       if (checkAttempt > 5) {
         throw new Error("task not caught by subscribe");
@@ -321,14 +217,14 @@ export class Robot {
     while (true) {
       // wait until task is successfully done
       if (!this.task) {
-        if (!Pos.equal(this.position, pos.pos)) {
+        if (!Pos.equal(this.data.pos, destination.pos)) {
           throw new Error("task is overridden");
         }
         break;
       } else {
         switch (this.task.t) {
           case "MoveToCoordinate": {
-            if (!Pos.equal(this.task.to.pos, pos.pos)) {
+            if (!Pos.equal(this.task.to.pos, destination.pos)) {
               throw new Error("task is overridden");
             }
             break;
@@ -339,67 +235,15 @@ export class Robot {
     }
   }
 
-  /** Publish a position update. */
-  private static async publishPosUpdate(
-    sdk: Actyx,
-    posUpdate: RobotHappenings.PosUpdate.Type
-  ) {
-    sdk.publish(
-      WorldUpdate.and(RobotHappenings.TagRobot)
-        .and(RobotHappenings.TagRobotWithId(posUpdate.id))
-        .and(RobotHappenings.TagRobotPosUpdate)
-        .apply(posUpdate)
-    );
+  private async publishPosUpdate(pos: Pos.Type["pos"]) {
+    return RobotHappenings.publishPosUpdate(this.actyx, {
+      id: this.data.id,
+      pos: pos,
+    });
   }
 
-  /** Publich a Robot creation event. */
-  private static async publishCreateRobotEvent(sdk: Actyx, robot: NRobot.Type) {
-    const taggedEvent = WorldCreate.and(WorldCreateWithId(robot.id))
-      .and(RobotHappenings.TagRobot)
-      .and(RobotHappenings.TagRobotCreated)
-      .apply(robot);
-
-    return sdk.publish(taggedEvent);
-  }
-
-  private async executeRequest(request: Events.WaterRequestedPayload) {
-    const actyx = this.actyx;
-    const machine = createMachineRunner(
-      actyx,
-      protocol.tagWithEntityId(request.requestId),
-      RobotStates.Init,
-      { robotId: this.id }
-    );
-
-    for await (const state of machine) {
-      // nothing is happening???
-      const requested = state.as(RobotStates.WaterRequested);
-      if (requested && !requested.payload.offered) {
-        await requested.commands()?.offer(this.position);
-      }
-
-      const accepted = state.as(RobotStates.HelpAccepted);
-      if (accepted) {
-        // if someone else is accepted, exit from the loop
-        if (accepted.payload.assignedRobotId !== this.id) {
-          break;
-        }
-
-        // TODO: move and watering proximity logic
-        await this.moveTo({ pos: accepted.payload.pos });
-        await this.waterPlant({
-          id: accepted.payload.robotId,
-          pos: accepted.payload.pos,
-        });
-        await sleep(10000);
-        await accepted.commands()?.markAsDone();
-        break;
-      }
-    }
-  }
-
-  private async waterPlant(watered: PlantHappenings.Watered.Type) {
-    const actyx = this.actyx;
-    return PlantHappenings.emitWatered(actyx, watered);
+  private async waterPlant(watered: PlantData.Watered.Type) {
+    await this.moveTo({ pos: watered.pos });
+    return PlantHappenings.publishWatered(this.actyx, watered);
   }
 }

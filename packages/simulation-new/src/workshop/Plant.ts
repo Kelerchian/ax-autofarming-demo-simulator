@@ -3,7 +3,10 @@ import { sleep } from "systemic-ts-utils/async-utils";
 import { Events, protocol } from "./protocol";
 import { createMachineRunner } from "@actyx/machine-runner";
 import { Actyx } from "@actyx/sdk";
-import { Pos } from "../../common/actors";
+import { PlantData, Pos } from "../common/actors";
+import { v4 as v4 } from "uuid";
+import { plantNotDoneRequest } from "./queries";
+import { Plant, PlantCoordinationCode } from "../actors/Plant";
 
 const machine = protocol.makeMachine("plant");
 
@@ -65,8 +68,8 @@ namespace States {
   HelpAccepted.react([Events.WateringDone], WateringDone, () => ({}));
 }
 
-const CHECK_WATER_LEVEL_DELTA = 1000;
-const WAIT_OFFER_DELTA = 200;
+const WAIT_OFFER_DELTA = 50;
+const DECIDE_OFFER_TIMEOUT = 300;
 
 export const performWateringProtocol = async (
   actyx: Actyx,
@@ -81,49 +84,54 @@ export const performWateringProtocol = async (
     { requestId, pos, plantId }
   ).refineStateType(States.All);
 
-  machine.events.on("next", (e) => {
-    console.log("performWateringProtocol:next", e.type);
-  });
-
   let localBiddingTimeout: null | number = null;
   for await (const state of machine) {
-    console.log("performWateringProtocol", 1);
     await state.as(States.Init, (state) => state.commands()?.request());
-    console.log("performWateringProtocol", 2);
 
     await state.as(States.WaterRequested, async (requested) => {
-      console.log("performWateringProtocol", 3);
       const bestOffer = requested.payload.offers
         .sort((a, b) => Pos.distance(a.pos, pos) - Pos.distance(b.pos, pos))
         .at(0);
 
-      console.log("performWateringProtocol", 4);
       if (!bestOffer) {
-        console.log("performWateringProtocol", 5);
-        // Wait until an offer has come (this state is expired)
+        // Wait until an offer has come.
+        // !commandsAvailable indicates that the state has expired, which means an offer has been made
         // eslint-disable-next-line no-constant-condition
         while (state.commandsAvailable()) {
-          console.log("performWateringProtocol", 6);
           await sleep(WAIT_OFFER_DELTA);
         }
-        console.log("performWateringProtocol", 6, "after");
         return;
       }
-      console.log("performWateringProtocol", 7);
 
       // If a best offer is found, set a local timeout
       // wait for 3000 milliseconds before choosing which offer is best
-      localBiddingTimeout = localBiddingTimeout || Date.now() + 3000;
+      localBiddingTimeout =
+        localBiddingTimeout || Date.now() + DECIDE_OFFER_TIMEOUT;
       const remainingWait = localBiddingTimeout - Date.now();
-      console.log("performWateringProtocol", 8);
       await sleep(remainingWait);
-      console.log("performWateringProtocol", 9);
       await requested.commands()?.accept(bestOffer.robot);
     });
 
     if (state.is(States.WateringDone)) {
       break;
     }
-    console.log("performWateringProtocol", "end");
+  }
+};
+
+export const plantCoordinationCode: PlantCoordinationCode = async ({
+  actyx,
+  getId,
+  getWaterLevel,
+  getPosition,
+}) => {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    // sleep to avoid spamming
+    if (getWaterLevel() < PlantData.WaterLevel.CanBeWatered) {
+      const requestId =
+        (await plantNotDoneRequest(actyx, getId()))?.requestId || v4();
+      await performWateringProtocol(actyx, getPosition(), requestId, getId());
+    }
+    await sleep(50);
   }
 };

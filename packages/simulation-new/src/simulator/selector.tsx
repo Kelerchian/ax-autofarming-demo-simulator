@@ -2,7 +2,7 @@ import { Vaettir } from "vaettir";
 import { Simulator } from "./sim";
 import { VaettirReact } from "vaettir-react";
 import { Obs } from "systemic-ts-utils/obs";
-import { Actor } from "../common/actors";
+import { ActorData } from "../common/actors";
 import { pipe } from "effect";
 
 export const SelectorCtx =
@@ -14,10 +14,10 @@ export const Selector = (simulator: Simulator) =>
     .api(({ channels }) => {
       const data = {
         hovers: {
-          actorMap: new Map<symbol, Actor.Type>(),
+          actorMap: new Map<symbol, ActorData.Type>(),
           idSet: new Set<string>(),
         },
-        onClick: Obs.make<Actor.Type>(),
+        onClick: Obs.make<ActorData.Type>(),
       };
 
       const refreshIdSet = () => {
@@ -32,14 +32,14 @@ export const Selector = (simulator: Simulator) =>
       return {
         selections: () =>
           Array.from(simulator.api.actors()).map((x) => x.api.actor()),
-        registerListener: (fn: (actor: Actor.Type) => unknown) => {
+        registerListener: (fn: (actor: ActorData.Type) => unknown) => {
           const unsub = data.onClick.sub(fn);
           return unsub;
         },
         createHoverAgent: () => {
           const symbol = Symbol();
           return {
-            hover: (actor: Actor.Type) => {
+            hover: (actor: ActorData.Type) => {
               data.hovers.actorMap.set(symbol, actor);
               refreshIdSet();
             },
@@ -49,8 +49,8 @@ export const Selector = (simulator: Simulator) =>
             },
           };
         },
-        click: (actor: Actor.Type) => data.onClick.emit(actor),
-        shouldHighlight: (actor: Actor.Type) =>
+        click: (actor: ActorData.Type) => data.onClick.emit(actor),
+        shouldHighlight: (actor: ActorData.Type) =>
           data.onClick.size() > 0 && data.hovers.idSet.has(actor.id),
       };
     })

@@ -1,11 +1,20 @@
 /* eslint-disable no-constant-condition */
-import ReactDOM from "react-dom/client";
-import { SimulatorView } from "./Simulator.tsx";
-import "./index.scss";
-import { Simulator } from "./worker/sim.tsx";
 import { Actyx } from "@actyx/sdk";
 import { Robot } from "./actors/Robot.ts";
 import { Plant } from "./actors/Plant.ts";
+import { plantCoordinationCode } from "./workshop/Plant.ts";
+import { robotCoordinationCode } from "./workshop/Robot.ts";
+import { runSimulator } from "./simulator/SimulatorView.tsx";
+
+// Bootstrap actyx network and world simulator
+// ===============
+// Ignore this section
+
+// skips are used to un-even the actors count when starting up a browser tab
+const skipRobot =
+  new URL(window.location.toString()).searchParams.get("skiprobot") !== null;
+const skipPlant =
+  new URL(window.location.toString()).searchParams.get("skipplant") !== null;
 
 const actyx = await Actyx.of(
   {
@@ -13,22 +22,22 @@ const actyx = await Actyx.of(
     displayName: "Workshop Demo",
     version: "1.0.0",
   },
-  {
-    actyxHost: "127.0.0.1",
-    actyxPort: 4454,
-  }
+  { actyxHost: "127.0.0.1", actyxPort: 4454 }
 );
 
-const robot = await Robot.init(actyx);
-const plant = await Plant.init(actyx);
+runSimulator(actyx);
 
-robot.runLoop(actyx);
-plant.runLoop();
+// Workshop code
+// ===============
+// plantCoordinationCode and robotCoordinationCode are editable
 
-// We run simulator
-const simulator = Simulator(actyx);
-simulator.api.init();
+// Plant Code & Robot Code
+// ===============
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <SimulatorView simulator={simulator} />
-);
+if (!skipPlant) {
+  Plant.run(actyx, plantCoordinationCode);
+}
+
+if (!skipRobot) {
+  Robot.run(actyx, robotCoordinationCode);
+}
